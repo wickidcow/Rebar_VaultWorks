@@ -3,16 +3,33 @@ guide:
   page:
     vaultworks: "VaultWorks"
 item:
+  encoded_circuit:
+    name: "Encoded Circuit"
+    lore: |-
+      <arrow> Core logic component for VaultWorks devices
+      <arrow> Used by storage, indexing and fabrication hardware
+  memory_wafer:
+    name: "Memory Wafer"
+    lore: |-
+      <arrow> Stores item and network metadata
+      <arrow> A building block for lattices and indexed storage
+  storage_lattice:
+    name: "Storage Lattice"
+    lore: |-
+      <arrow> Structured storage memory for VaultWorks cells
+      <arrow> Honeycomb-inspired visual without requiring a resource pack
   basic_vault_cell:
     name: "Basic Vault Cell"
     lore: |-
       <arrow> 54 slots of physical storage
+      <arrow> Barrel-based visual; no generic iron block shell
       <arrow> Right-click to open; no electricity required
       <arrow> Breaking the cell drops its contents
   powered_vault_cell:
     name: "Powered Vault Cell"
     lore: |-
       <arrow> 54 slots with native Rebar electric cargo access
+      <arrow> Ender Chest visual for the powered storage tier
       <arrow> Power port on top; cargo input WEST, output EAST
       <arrow> Automation pauses without power; manual access stays available
       <arrow> Breaking the cell drops its contents
