@@ -18,6 +18,8 @@ Available now: a 54-slot Basic Vault Cell and a 54-slot Powered Vault Cell with 
 
 Requires Paper 26.2, Java 25, and the electricity-enabled Rebar development server JAR from upstream commit `5e34938f044dc63c103213e80b07484bf4994639`. The build pins API snapshot `1.0.0-20260929.193904-140`. Rebar's stable 0.43.0-26.2 server JAR cannot load this build; the Maven API artifact is not the server plugin.
 
+[Download the raw 0.1.0-SNAPSHOT JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.1.0-SNAPSHOT.jar). Place it directly in `plugins/` and restart.
+
 ### Use powered storage
 
 1. Open `/rebar guide` → VaultWorks and craft a Powered Vault Cell.
