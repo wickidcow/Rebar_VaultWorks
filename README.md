@@ -12,9 +12,25 @@ There is no magic global inventory object and no world-wide storage scan.
 
 ## Project status
 
-**Concept / architecture stage.**
+**0.1.0-SNAPSHOT: powered storage foundation implemented.**
 
-This repository is intentionally starting with the storage model, progression, and anti-dupe rules before implementation. The exact Rebar API bindings and balancing numbers can be chosen once the model is stable.
+Available now: a 54-slot Basic Vault Cell and a 54-slot Powered Vault Cell with native Rebar electricity and cargo. The network index, remote terminal and request crafting below remain planned; this first build does not claim those systems are finished.
+
+Requires Paper 26.2, Java 25, and the electricity-enabled Rebar development server JAR from upstream commit `5e34938f044dc63c103213e80b07484bf4994639`. The build pins API snapshot `1.0.0-20260929.193904-140`. Rebar's stable 0.43.0-26.2 server JAR cannot load this build; the Maven API artifact is not the server plugin.
+
+### Use powered storage
+
+1. Open `/rebar guide` → VaultWorks and craft a Powered Vault Cell.
+2. Right-click to insert items directly. The cell owns and saves its 54 slots through Rebar; breaking it drops the contents.
+3. Connect a compatible Rebar wire from your electricity content addon to the **top power port**. The default load is **32 W**.
+4. Connect cargo input on the **WEST** face and cargo output on the **EAST** face. Compass directions are fixed and do not depend on the placement direction.
+5. With adequate power, Rebar handles cargo transfers. Without power, both automated insertion and extraction are blocked; manual access remains available. Electricity updates take effect on Rebar's next electricity tick.
+
+For GridWorks control, wire supply through a Power Coupler to the cell; aim a Smart Breaker and optional Power Limiter at the coupler. The addons do not depend on each other. GridWorks Inventory Sensors can already read the cell using Rebar's public virtual-inventory interface.
+
+`power.watts` and `cargo.items-per-tick` are configurable; restart after changing them. Rebar's global cargo multiplier also applies. This foundation has no per-cell polling task, world scan, forced chunk load, separate item database or queued crafting job. Power loss never clears the inventory.
+
+Build with Java 25: `./gradlew clean build`. The raw plugin JAR is in `build/libs/`.
 
 ## Core idea
 

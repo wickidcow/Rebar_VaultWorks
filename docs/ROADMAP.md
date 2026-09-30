@@ -1,8 +1,8 @@
 # VaultWorks Roadmap
 
-VaultWorks is currently a **design-stage project**.
+VaultWorks 0.1.0 has a playable **physical-cell and native-electricity foundation**.
 
-Implementation should begin only after the storage authority, transaction, reservation, and restart-recovery rules are clear enough to test.
+Implemented: 54-slot Basic and Powered Vault Cells, Rebar-managed item persistence, direct access during outages, and power-gated Rebar cargo. Distributed indexing, reservations and request crafting remain future work and require the transaction/recovery contracts below.
 
 ## Phase 0 — Architecture contract
 

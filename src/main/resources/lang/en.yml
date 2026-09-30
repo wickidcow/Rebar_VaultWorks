@@ -1,0 +1,18 @@
+addon: "VaultWorks"
+guide:
+  page:
+    vaultworks: "VaultWorks"
+item:
+  basic_vault_cell:
+    name: "Basic Vault Cell"
+    lore: |-
+      <arrow> 54 slots of physical storage
+      <arrow> Right-click to open; no electricity required
+      <arrow> Breaking the cell drops its contents
+  powered_vault_cell:
+    name: "Powered Vault Cell"
+    lore: |-
+      <arrow> 54 slots with native Rebar electric cargo access
+      <arrow> Power port on top; cargo input WEST, output EAST
+      <arrow> Automation pauses without power; manual access stays available
+      <arrow> Breaking the cell drops its contents

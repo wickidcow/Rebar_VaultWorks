@@ -1,0 +1,6 @@
+# Native Rebar electricity, in watts. Restart after changes.
+power:
+  watts: 32.0
+# Rebar applies its own global cargo transfer multiplier to this value.
+cargo:
+  items-per-tick: 8
