@@ -160,10 +160,13 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     void updatePowerVisual(boolean online) {
-        if (getBlock().getBlockData() instanceof Vault vault) {
-            vault.setVaultState(online ? Vault.State.ACTIVE : Vault.State.INACTIVE);
+        // Keep the vanilla Vault machinery inert. Power is represented by the
+        // shared base plus the brightness/glow of our own floating item display.
+        if (getBlock().getBlockData() instanceof Vault vault && vault.getVaultState() != Vault.State.INACTIVE) {
+            vault.setVaultState(Vault.State.INACTIVE);
             getBlock().setBlockData(vault, false);
         }
+        VaultDisplayManager.update(this, online);
         refreshGuiItems();
     }
 
