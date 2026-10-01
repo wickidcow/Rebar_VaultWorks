@@ -21,6 +21,8 @@ Available now:
 - **Powered Vault Cell** — advanced ominous-Vault visual, configurable default capacity of **4,000,000 items**.
 - **Vault Power Base** — powers one contiguous vertical column of up to **6 Vault Cells**.
 - **Vault Cargo Node** — sits directly behind one Vault Cell and exposes one outward Rebar cargo connection.
+- **Vault Link Cable** — passive explicit topology for metadata/index connections.
+- **Vault Index** — read-only network overview across explicitly connected loaded Power Bases.
 - Floating registered-item display inside each Vault.
 - Quick deposit, quick withdraw, clear-registration control and per-Vault overflow-purge toggle.
 - Filled Vault Cells keep their stored item, count and overflow setting inside the dropped Vault item when broken, so the cell can be moved and placed elsewhere without dumping its contents.
@@ -41,6 +43,16 @@ Requires Paper 26.2, Java 25, and the electricity-enabled Rebar development serv
 8. Break a filled Vault Cell normally and the stored state travels with the dropped Vault Cell item. Place that item above another valid Vault Power Base to restore it.
 
 The Power Base uses a lit copper-bulb shell as the safe vanilla fallback for the “powered bedrock / power mat” idea. It remains normally breakable; VaultWorks does not turn the actual world block into unbreakable Bedrock.
+
+### Build a read-only Vault Index
+
+1. Place a **Vault Index**.
+2. Connect it to one or more **Vault Power Bases** using **Vault Link Cables**. Adjacent Power Bases also connect directly to one another.
+3. Right-click the Index to see connected node count, columns online, Vault count, registered item types, total stored items, capacity and currently accessible stock.
+4. Use **Refresh Index** after changing the network. Traversal is bounded by `index.max-network-nodes` (default 4096).
+5. The Index follows only loaded Vault Index, Vault Link and Vault Power Base blocks. It never scans the world and never force-loads chunks.
+
+This phase is intentionally **read-only**. The Index owns metadata only; it does not own, withdraw or insert items. Searchable terminal mutation comes after topology and identity rules are proven.
 
 Rebar cargo is the external machine-I/O layer, not VaultWorks' future internal network protocol. The planned Vault Index and Vault Terminal will perform validated operations directly against attached Vault Cells, while future import/export interfaces will bridge indexed storage to Rebar cargo.
 
