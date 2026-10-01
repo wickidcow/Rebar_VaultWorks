@@ -502,13 +502,14 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         VaultButton purge = remember(new PurgeButton());
         VaultButton clear = remember(new ClearButton());
         VaultButton recovery = remember(new RecoveryButton());
+        VaultButton identity = remember(new IdentityRecoveryButton());
 
         return Gui.builder()
                 .setStructure(
                         "# # # # # # # # #",
                         "# d # s # i # w #",
                         "# # # # # # # # #",
-                        "# p # c # r # # #",
+                        "# p # c # r # k #",
                         "# # # # # # # # #"
                 )
                 .addIngredient('#', GuiItems.backgroundBlack())
@@ -519,6 +520,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                 .addIngredient('p', purge)
                 .addIngredient('c', clear)
                 .addIngredient('r', recovery)
+                .addIngredient('k', identity)
                 .build();
     }
 
@@ -749,6 +751,37 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
     }
 
+    protected void rekeyEmptyIdentity(Player player) {
+        if (!identityConflict) {
+            player.sendMessage(Component.text("This Vault endpoint identity is healthy."));
+            return;
+        }
+
+        if (storedAmount > 0L || !legacyRecovery.isEmpty()) {
+            player.sendMessage(Component.text(
+                    "Identity recovery refused: filled/conflicted Vaults must be reviewed without re-keying their contents."
+            ));
+            return;
+        }
+
+        UUID previous = endpointId;
+        VaultEndpointRegistry.unregister(this);
+        endpointId = UUID.randomUUID();
+        identityConflict = false;
+        touchRevision();
+        VaultEndpointRegistry.register(this);
+
+        VaultPowerBase base = getPowerBase();
+        updatePowerVisual(base != null && base.isOnline() && !identityConflict);
+        refreshGuiItems();
+
+        player.sendMessage(Component.text(
+                "Empty Vault endpoint re-keyed from "
+                        + previous.toString().substring(0, 8)
+                        + " to " + endpointId.toString().substring(0, 8) + "."
+        ));
+    }
+
     protected static String format(long value) {
         return String.format(Locale.US, "%,d", value);
     }
@@ -876,6 +909,38 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         @Override
         public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
             clearRegistration(player);
+        }
+    }
+
+    private final class IdentityRecoveryButton extends VaultButton {
+        @Override
+        public @NotNull ItemProvider getItemProvider(@NotNull Player viewer) {
+            if (!identityConflict) {
+                return ItemStackBuilder.of(Material.LIME_DYE)
+                        .name(Component.text("Endpoint Identity — Healthy"))
+                        .lore(
+                                Component.text(endpointId.toString()),
+                                Component.text("Revision: " + endpointRevision)
+                        );
+            }
+
+            boolean safeToRekey = storedAmount == 0L && legacyRecovery.isEmpty();
+            return ItemStackBuilder.of(safeToRekey ? Material.YELLOW_DYE : Material.RED_DYE)
+                    .name(Component.text("Endpoint Identity — CONFLICT"))
+                    .lore(
+                            Component.text(endpointId.toString()),
+                            Component.text("Revision: " + endpointRevision),
+                            Component.text(safeToRekey
+                                    ? "Click to re-key this empty Vault safely."
+                                    : "Filled conflicts remain locked; do not re-key stored contents.")
+                    );
+        }
+
+        @Override
+        public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
+            if (identityConflict) {
+                rekeyEmptyIdentity(player);
+            }
         }
     }
 
