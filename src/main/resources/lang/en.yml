@@ -43,7 +43,8 @@ item:
     lore: |-
       <arrow> Browse exact item identities across the connected Vault network
       <arrow> Paged view shows total and currently accessible stock
-      <arrow> Manual refresh only; no background network polling
+      <arrow> Live anvil search supports names, @namespace, #online and #offline
+      <arrow> Search filters one captured snapshot; no per-keystroke network scan
       <arrow> Read-only foundation: withdrawals and deposits are not enabled yet
 
   vault_power_base:
