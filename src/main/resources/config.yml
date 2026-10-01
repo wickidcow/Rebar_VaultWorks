@@ -28,3 +28,21 @@ index:
 # types, but a single GUI refresh will materialize at most this many item buttons.
 terminal:
   max-item-types: 4096
+
+
+# Loaded-only wireless access. Wireless Vault Terminals never force-load the
+# transmitter or storage network they are bound to.
+wireless:
+  # Rebar electricity demand of one Vault Transmitter.
+  transmitter-watts: 32.0
+
+  # Base same-world range without an adjacent Vault Antenna.
+  base-range-blocks: 64.0
+
+  # Same-world range when at least one Vault Antenna is directly adjacent.
+  antenna-range-blocks: 512.0
+
+  # When true, a directly adjacent Dimensional Vault Antenna permits access
+  # from another loaded world/dimension. The source transmitter must still be
+  # loaded and powered.
+  allow-cross-dimension: true
