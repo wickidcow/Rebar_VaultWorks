@@ -19,6 +19,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -52,6 +53,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     private static final NamespacedKey STORED_AMOUNT_KEY = new NamespacedKey("vaultworks", "stored_amount");
     private static final NamespacedKey PURGE_OVERFLOW_KEY = new NamespacedKey("vaultworks", "purge_overflow");
     private static final NamespacedKey LEGACY_RECOVERY_KEY = new NamespacedKey("vaultworks", "legacy_recovery");
+    private static final NamespacedKey ENDPOINT_ID_KEY = new NamespacedKey("vaultworks", "endpoint_id");
+    private static final NamespacedKey ENDPOINT_REVISION_KEY = new NamespacedKey("vaultworks", "endpoint_revision");
+    private static final NamespacedKey IDENTITY_CONFLICT_KEY = new NamespacedKey("vaultworks", "identity_conflict");
     private static final NamespacedKey LEGACY_INVENTORY_KEY = new NamespacedKey("rebar", "virtual_inventory_items");
 
     private static final PersistentDataType<?, List<ItemStack>> ITEM_LIST_TYPE =
@@ -64,11 +68,16 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     protected boolean purgeOverflow;
     protected final List<ItemStack> legacyRecovery = new ArrayList<>();
 
+    private UUID endpointId;
+    private long endpointRevision;
+    private boolean identityConflict;
+
     private final List<VaultButton> guiButtons = new ArrayList<>();
 
     public BasicVaultCell(@NotNull Block block, @NotNull BlockCreateContext context) {
         super(block, context);
         loadPortableState(context.getItem() == null ? null : context.getItem().getPersistentDataContainer());
+        ensureEndpointIdentity();
         VaultPowerBase base = getPowerBase();
         setVaultShell(false, base == null ? context.getFacing() : base.getFacing());
     }
@@ -76,6 +85,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     public BasicVaultCell(@NotNull Block block, @NotNull PersistentDataContainer pdc) {
         super(block, pdc);
         loadPortableState(pdc);
+        ensureEndpointIdentity();
         migrateLegacyInventory(pdc);
         setVaultShell(false, null);
     }
@@ -83,6 +93,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     @Override
     public void postInitialise() {
         super.postInitialise();
+        VaultEndpointRegistry.register(this);
         VaultDisplayManager.update(this);
 
         VaultPowerBase base = getPowerBase();
@@ -133,6 +144,37 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         return !legacyRecovery.isEmpty();
     }
 
+    public UUID getEndpointId() {
+        return endpointId;
+    }
+
+    public long getEndpointRevision() {
+        return endpointRevision;
+    }
+
+    public boolean hasIdentityConflict() {
+        return identityConflict;
+    }
+
+    void flagIdentityConflict() {
+        if (!identityConflict) {
+            identityConflict = true;
+            touchRevision();
+            updatePowerVisual(false);
+        }
+    }
+
+    private void ensureEndpointIdentity() {
+        if (endpointId == null) {
+            endpointId = UUID.randomUUID();
+            endpointRevision = Math.max(1L, endpointRevision);
+        }
+    }
+
+    void touchRevision() {
+        endpointRevision = VaultRevisionMath.next(endpointRevision);
+    }
+
     public VaultPowerBase getPowerBase() {
         Block cursor = getBlock().getRelative(BlockFace.DOWN);
         for (int depth = 1; depth <= MAX_COLUMN_HEIGHT; depth++) {
@@ -158,6 +200,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     public boolean isOperational() {
+        if (identityConflict) {
+            return false;
+        }
         VaultPowerBase base = getPowerBase();
         return base != null && base.isOnline();
     }
@@ -174,6 +219,13 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     protected boolean requireOperational(Player player) {
+        if (identityConflict) {
+            player.sendMessage(Component.text(
+                    "Vault locked: duplicate endpoint identity detected. Stored contents are preserved, but mutation is disabled."
+            ));
+            return false;
+        }
+
         if (isOperational()) {
             return true;
         }
@@ -211,11 +263,15 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
         storedItem = stack.asOne();
         storedAmount = 1L;
+        touchRevision();
         VaultDisplayManager.update(this);
         refreshGuiItems();
     }
 
     protected void setStoredState(ItemStack stack, long amount) {
+        ItemStack previousItem = storedItem == null ? null : storedItem.asOne();
+        long previousAmount = storedAmount;
+
         if (stack != null && !stack.isEmpty()) {
             if (storedItem == null) {
                 storedItem = stack.asOne();
@@ -224,6 +280,27 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             }
         }
         storedAmount = Math.max(0L, amount);
+
+        boolean itemChanged = previousItem == null
+                ? storedItem != null
+                : storedItem == null || !previousItem.isSimilar(storedItem);
+        if (itemChanged || previousAmount != storedAmount) {
+            touchRevision();
+        }
+    }
+
+    void applyCargoAmount(ItemStack stack, long amount) {
+        long previousAmount = storedAmount;
+        storedAmount = VaultStorageMath.applyProposedAmount(
+                storedAmount,
+                amount,
+                getCapacity(),
+                purgeOverflow
+        );
+        if (previousAmount != storedAmount) {
+            touchRevision();
+        }
+        refreshGuiItems();
     }
 
     protected void refreshGuiItems() {
@@ -241,6 +318,15 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         Long amount = pdc.get(STORED_AMOUNT_KEY, RebarSerializers.LONG);
         Boolean purge = pdc.get(PURGE_OVERFLOW_KEY, RebarSerializers.BOOLEAN);
         List<ItemStack> recovery = pdc.get(LEGACY_RECOVERY_KEY, ITEM_LIST_TYPE);
+        UUID loadedEndpointId = pdc.get(ENDPOINT_ID_KEY, RebarSerializers.UUID);
+        Long loadedRevision = pdc.get(ENDPOINT_REVISION_KEY, RebarSerializers.LONG);
+        Boolean loadedConflict = pdc.get(IDENTITY_CONFLICT_KEY, RebarSerializers.BOOLEAN);
+
+        if (loadedEndpointId != null) {
+            endpointId = loadedEndpointId;
+        }
+        endpointRevision = Math.max(0L, loadedRevision == null ? 0L : loadedRevision);
+        identityConflict = loadedConflict != null && loadedConflict;
 
         if (item != null && !item.isEmpty()) {
             storedItem = item.asOne();
@@ -326,6 +412,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
         pdc.set(STORED_AMOUNT_KEY, RebarSerializers.LONG, Math.max(0L, storedAmount));
         pdc.set(PURGE_OVERFLOW_KEY, RebarSerializers.BOOLEAN, purgeOverflow);
+        pdc.set(ENDPOINT_ID_KEY, RebarSerializers.UUID, endpointId);
+        pdc.set(ENDPOINT_REVISION_KEY, RebarSerializers.LONG, Math.max(0L, endpointRevision));
+        pdc.set(IDENTITY_CONFLICT_KEY, RebarSerializers.BOOLEAN, identityConflict);
 
         if (legacyRecovery.isEmpty()) {
             pdc.remove(LEGACY_RECOVERY_KEY);
@@ -356,6 +445,11 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             lore.add(Component.text("Stored: empty"));
         }
         lore.add(Component.text("Overflow purge: " + (purgeOverflow ? "ON" : "OFF")));
+        lore.add(Component.text("Endpoint: " + endpointId.toString().substring(0, 8)
+                + " / rev " + endpointRevision));
+        if (identityConflict) {
+            lore.add(Component.text("LOCKED: duplicate endpoint identity"));
+        }
         if (!legacyRecovery.isEmpty()) {
             lore.add(Component.text("Legacy recovery stacks: " + legacyRecovery.size()));
         }
@@ -367,11 +461,13 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     public void onUnload(@NotNull RebarBlockUnloadEvent event, @NotNull EventPriority priority) {
         // The ItemDisplay itself is persistent and unloads with the chunk. Forget only
         // the live UUID cache so the next load can recover it without retaining cells forever.
+        VaultEndpointRegistry.unregister(this);
         VaultDisplayManager.forget(this);
     }
 
     @Override
     public void onBlockBreak(@NotNull List<ItemStack> drops, @NotNull BlockBreakContext context) {
+        VaultEndpointRegistry.unregister(this);
         VaultDisplayManager.remove(this);
 
         VaultPowerBase base = getPowerBase();
@@ -406,13 +502,14 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         VaultButton purge = remember(new PurgeButton());
         VaultButton clear = remember(new ClearButton());
         VaultButton recovery = remember(new RecoveryButton());
+        VaultButton identity = remember(new IdentityRecoveryButton());
 
         return Gui.builder()
                 .setStructure(
                         "# # # # # # # # #",
                         "# d # s # i # w #",
                         "# # # # # # # # #",
-                        "# p # c # r # # #",
+                        "# p # c # r # k #",
                         "# # # # # # # # #"
                 )
                 .addIngredient('#', GuiItems.backgroundBlack())
@@ -423,6 +520,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                 .addIngredient('p', purge)
                 .addIngredient('c', clear)
                 .addIngredient('r', recovery)
+                .addIngredient('k', identity)
                 .build();
     }
 
@@ -433,14 +531,16 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     @Override
     public @NotNull Component getGuiTitle() {
-        return Component.text("Basic Vault Cell — " + (isOperational() ? "Online" : "Offline"));
+        return Component.text("Basic Vault Cell — "
+                + (identityConflict ? "LOCKED / ID CONFLICT" : (isOperational() ? "Online" : "Offline")));
     }
 
     @Override
     public WailaDisplay getWaila(@NotNull Player player) {
         boolean online = isOperational();
         WailaDisplay display = WailaDisplay.of(this, player)
-                .add(Component.text(online ? "ONLINE" : "OFFLINE"));
+                .add(Component.text(identityConflict ? "LOCKED-ID-CONFLICT" : (online ? "ONLINE" : "OFFLINE")))
+                .add(Component.text("rev " + endpointRevision));
 
         if (storedItem == null) {
             return display.add(Component.text("Empty / unregistered"));
@@ -530,6 +630,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             }
         }
 
+        if (accepted > 0L || voided > 0L) {
+            touchRevision();
+        }
         refreshGuiItems();
         if (accepted > 0 || voided > 0) {
             player.sendMessage(Component.text("Deposited " + format(accepted)
@@ -568,6 +671,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             }
         }
 
+        if (removed > 0L) {
+            touchRevision();
+        }
         refreshGuiItems();
         if (removed == 0L) {
             player.sendMessage(Component.text("Your inventory is full."));
@@ -579,6 +685,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             return;
         }
         purgeOverflow = !purgeOverflow;
+        touchRevision();
         refreshGuiItems();
         player.sendMessage(Component.text("Overflow purge " + (purgeOverflow ? "enabled." : "disabled.")));
     }
@@ -600,6 +707,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
 
         storedItem = null;
+        touchRevision();
         VaultDisplayManager.update(this);
         refreshGuiItems();
         player.sendMessage(Component.text("Vault Cell registration cleared."));
@@ -614,20 +722,27 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             return;
         }
 
+        boolean recoveryChanged = false;
         Iterator<ItemStack> iterator = legacyRecovery.iterator();
         while (iterator.hasNext()) {
             ItemStack stack = iterator.next();
+            int beforeAmount = stack.getAmount();
             Map<Integer, ItemStack> leftovers = player.getInventory().addItem(stack.clone());
             if (leftovers.isEmpty()) {
                 iterator.remove();
+                recoveryChanged = true;
                 continue;
             }
 
             ItemStack remaining = leftovers.values().iterator().next();
             stack.setAmount(remaining.getAmount());
+            recoveryChanged |= stack.getAmount() != beforeAmount;
             break;
         }
 
+        if (recoveryChanged) {
+            touchRevision();
+        }
         refreshGuiItems();
         if (legacyRecovery.isEmpty()) {
             player.sendMessage(Component.text("Legacy Vault contents fully recovered."));
@@ -635,6 +750,37 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             player.sendMessage(Component.text("Recovered what would fit. "
                     + legacyRecovery.size() + " stack(s) remain."));
         }
+    }
+
+    protected void rekeyEmptyIdentity(Player player) {
+        if (!identityConflict) {
+            player.sendMessage(Component.text("This Vault endpoint identity is healthy."));
+            return;
+        }
+
+        if (storedAmount > 0L || !legacyRecovery.isEmpty()) {
+            player.sendMessage(Component.text(
+                    "Identity recovery refused: filled/conflicted Vaults must be reviewed without re-keying their contents."
+            ));
+            return;
+        }
+
+        UUID previous = endpointId;
+        VaultEndpointRegistry.unregister(this);
+        endpointId = UUID.randomUUID();
+        identityConflict = false;
+        touchRevision();
+        VaultEndpointRegistry.register(this);
+
+        VaultPowerBase base = getPowerBase();
+        updatePowerVisual(base != null && base.isOnline() && !identityConflict);
+        refreshGuiItems();
+
+        player.sendMessage(Component.text(
+                "Empty Vault endpoint re-keyed from "
+                        + previous.toString().substring(0, 8)
+                        + " to " + endpointId.toString().substring(0, 8) + "."
+        ));
     }
 
     protected static String format(long value) {
@@ -654,14 +800,19 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             String percent = capacity <= 0L ? "0" : String.format(Locale.US, "%.1f", (storedAmount * 100.0D) / capacity);
             boolean online = isOperational();
             return ItemStackBuilder.of(online ? Material.COPPER_BULB : Material.EXPOSED_COPPER_BULB)
-                    .name(Component.text("Vault Status — " + (online ? "ONLINE" : "OFFLINE")))
+                    .name(Component.text("Vault Status — "
+                            + (identityConflict ? "LOCKED / ID CONFLICT" : (online ? "ONLINE" : "OFFLINE"))))
                     .lore(
                             Component.text("Stored: " + format(storedAmount) + " / " + format(capacity)),
                             Component.text("Used: " + percent + "%"),
                             Component.text("Column limit: " + MAX_COLUMN_HEIGHT + " Vault Cells per Power Base"),
-                            Component.text(online
-                                    ? "Powered by the Vault Power Base below."
-                                    : "Storage controls and cargo are locked until powered."),
+                            Component.text("Endpoint: " + endpointId.toString().substring(0, 8)
+                                    + " / rev " + endpointRevision),
+                            Component.text(identityConflict
+                                    ? "LOCKED: duplicate endpoint identity detected."
+                                    : (online
+                                            ? "Powered by the Vault Power Base below."
+                                            : "Storage controls and cargo are locked until powered.")),
                             Component.text(storedAmount > capacity ? "Over configured capacity — withdrawals remain safe." : "")
                     );
         }
@@ -760,6 +911,38 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         @Override
         public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
             clearRegistration(player);
+        }
+    }
+
+    private final class IdentityRecoveryButton extends VaultButton {
+        @Override
+        public @NotNull ItemProvider getItemProvider(@NotNull Player viewer) {
+            if (!identityConflict) {
+                return ItemStackBuilder.of(Material.LIME_DYE)
+                        .name(Component.text("Endpoint Identity — Healthy"))
+                        .lore(
+                                Component.text(endpointId.toString()),
+                                Component.text("Revision: " + endpointRevision)
+                        );
+            }
+
+            boolean safeToRekey = storedAmount == 0L && legacyRecovery.isEmpty();
+            return ItemStackBuilder.of(safeToRekey ? Material.YELLOW_DYE : Material.RED_DYE)
+                    .name(Component.text("Endpoint Identity — CONFLICT"))
+                    .lore(
+                            Component.text(endpointId.toString()),
+                            Component.text("Revision: " + endpointRevision),
+                            Component.text(safeToRekey
+                                    ? "Click to re-key this empty Vault safely."
+                                    : "Filled conflicts remain locked; do not re-key stored contents.")
+                    );
+        }
+
+        @Override
+        public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
+            if (identityConflict) {
+                rekeyEmptyIdentity(player);
+            }
         }
     }
 

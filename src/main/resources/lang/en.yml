@@ -74,6 +74,8 @@ item:
       <arrow> Quick deposit/withdraw and optional overflow purge
       <arrow> Placement is limited to a 6-cell column above a Vault Power Base
       <arrow> Breaking the Vault keeps its stored state inside the dropped cell
+      <arrow> Stable endpoint UUID/revision travels with the portable Vault
+      <arrow> Stable endpoint UUID/revision travels with the portable Vault
 
   powered_vault_cell:
     name: "Powered Vault Cell"

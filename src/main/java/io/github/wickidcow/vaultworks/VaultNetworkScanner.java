@@ -39,6 +39,7 @@ final class VaultNetworkScanner {
         int registered = 0;
         int onlineColumns = 0;
         int legacyRecovery = 0;
+        int identityConflicts = 0;
         long totalStored = 0L;
         long accessibleStored = 0L;
         long totalCapacity = 0L;
@@ -70,8 +71,13 @@ final class VaultNetworkScanner {
                 totalCapacity = addClamped(totalCapacity, cell.getCapacity());
                 totalStored = addClamped(totalStored, cell.getStoredAmount());
 
-                if (online) {
+                boolean accessible = cell.isOperational();
+                if (accessible) {
                     accessibleStored = addClamped(accessibleStored, cell.getStoredAmount());
+                }
+
+                if (cell.hasIdentityConflict()) {
+                    identityConflicts++;
                 }
 
                 ItemStack item = cell.getStoredItem();
@@ -84,7 +90,7 @@ final class VaultNetworkScanner {
                             ignored -> new MutableItemSummary(normalized)
                     );
                     summary.totalStored = addClamped(summary.totalStored, cell.getStoredAmount());
-                    if (online) {
+                    if (accessible) {
                         summary.accessibleStored = addClamped(summary.accessibleStored, cell.getStoredAmount());
                     }
                     summary.vaultCount++;
@@ -120,6 +126,7 @@ final class VaultNetworkScanner {
                 registered,
                 items.size(),
                 legacyRecovery,
+                identityConflicts,
                 totalStored,
                 accessibleStored,
                 totalCapacity,

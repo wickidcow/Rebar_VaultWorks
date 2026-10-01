@@ -32,12 +32,20 @@ Implemented foundation:
 - overflow handling that is safe-by-default;
 - legacy prototype recovery.
 
+Implemented endpoint invariants:
+
+- stable endpoint UUID persisted through break/re-place;
+- monotonic endpoint revision across storage/control mutations;
+- loaded duplicate-ID detection;
+- persisted hard lock for duplicate identities;
+- conflicted endpoints excluded from accessible network stock.
+
 Still to add before Phase 1 is considered complete:
 
-- stable endpoint UUID;
-- duplicate-ID detection;
-- explicit inventory revision/change events;
-- restart and crash-window regression tests.
+- administrator Doctor diagnostics/recovery workflow for filled identity conflicts;
+- broader restart and crash-window regression tests.
+
+Empty conflicted Vaults with no recovery stacks can already be safely re-keyed from their GUI.
 
 No indexed network yet.
 
