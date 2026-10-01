@@ -42,8 +42,10 @@ Implemented endpoint invariants:
 
 Still to add before Phase 1 is considered complete:
 
-- administrator Doctor/recovery workflow for identity conflicts;
+- administrator Doctor diagnostics/recovery workflow for filled identity conflicts;
 - broader restart and crash-window regression tests.
+
+Empty conflicted Vaults with no recovery stacks can already be safely re-keyed from their GUI.
 
 No indexed network yet.
 
