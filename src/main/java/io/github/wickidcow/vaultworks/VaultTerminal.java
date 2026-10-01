@@ -140,60 +140,21 @@ public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
             Player player,
             String rawSearch
     ) {
-        String search = rawSearch == null ? "" : rawSearch.trim().toLowerCase(player.locale());
-        if (search.isBlank()) {
-            return source;
-        }
-
-        String[] pieces = search.split("\\s+");
+        VaultSearchQuery query = VaultSearchQuery.parse(rawSearch, player.locale());
         List<VaultItemSummary> filtered = new ArrayList<>();
 
         for (VaultItemSummary summary : source) {
-            if (matchesAll(summary, player, pieces)) {
+            if (query.matches(
+                    displayName(summary.item(), player),
+                    namespace(summary.item()),
+                    summary.totalStored(),
+                    summary.accessibleStored()
+            )) {
                 filtered.add(summary);
             }
         }
 
         return filtered;
-    }
-
-    private boolean matchesAll(VaultItemSummary summary, Player player, String[] pieces) {
-        String itemName = displayName(summary.item(), player);
-        String namespace = namespace(summary.item());
-
-        for (String piece : pieces) {
-            if (piece.isBlank()) {
-                continue;
-            }
-
-            if (piece.startsWith("@")) {
-                String wanted = piece.substring(1);
-                if (!wanted.isBlank() && !namespace.contains(wanted)) {
-                    return false;
-                }
-                continue;
-            }
-
-            if (piece.equals("#online")) {
-                if (summary.accessibleStored() <= 0L) {
-                    return false;
-                }
-                continue;
-            }
-
-            if (piece.equals("#offline")) {
-                if (summary.totalStored() <= summary.accessibleStored()) {
-                    return false;
-                }
-                continue;
-            }
-
-            if (!itemName.contains(piece)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private String displayName(ItemStack item, Player player) {
