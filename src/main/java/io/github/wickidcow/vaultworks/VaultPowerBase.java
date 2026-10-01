@@ -38,7 +38,7 @@ public final class VaultPowerBase extends RebarBlock implements
         BlockFace front = context.getFacing();
         setFacing(front);
         createSimpleElectricPort(ElectricNodeType.CONSUMER, front.getOppositeFace());
-        setRequiredPower(VaultWorks.instance().policy().watts());
+        refreshPowerDemand();
         setBaseVisual(false);
     }
 
@@ -72,7 +72,34 @@ public final class VaultPowerBase extends RebarBlock implements
      * Called after cell placement/load as well as power changes.
      */
     public void refreshColumnVisuals() {
+        refreshPowerDemand();
         applyVaultVisuals(isOnline());
+    }
+
+    public void refreshPowerDemand() {
+        setRequiredPower(VaultWorks.instance().policy().demandForCells(getColumnHeight()));
+    }
+
+    public void refreshAfterCellBreak(BasicVaultCell removed) {
+        int remainingContiguous = 0;
+        for (int height = 1; height <= BasicVaultCell.MAX_COLUMN_HEIGHT; height++) {
+            BasicVaultCell cell;
+            try {
+                cell = BlockStorage.getAs(
+                        BasicVaultCell.class,
+                        getBlock().getRelative(BlockFace.UP, height)
+                );
+            } catch (IllegalArgumentException ignored) {
+                break;
+            }
+
+            if (cell == null || cell == removed) {
+                break;
+            }
+            remainingContiguous++;
+        }
+
+        setRequiredPower(VaultWorks.instance().policy().demandForCells(remainingContiguous));
     }
 
     public int getColumnHeight() {
@@ -96,7 +123,7 @@ public final class VaultPowerBase extends RebarBlock implements
         return WailaDisplay.of(this, player)
                 .add(Component.text(online ? "ONLINE" : "OFFLINE"))
                 .add(Component.text(getColumnHeight() + " / " + BasicVaultCell.MAX_COLUMN_HEIGHT + " Vaults"))
-                .add(Component.text(VaultWorks.instance().policy().watts() + " W"));
+                .add(Component.text(VaultWorks.instance().policy().demandForCells(getColumnHeight()) + " W demand"));
     }
 
     private void applyPowerState(boolean online) {
