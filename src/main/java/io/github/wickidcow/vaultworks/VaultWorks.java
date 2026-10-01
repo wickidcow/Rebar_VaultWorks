@@ -42,8 +42,11 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
         instance = this;
         saveDefaultConfig();
+        migrateConfig();
+        double legacyWatts = getConfig().getDouble("power.watts", 48.0D);
         policy = new PowerPolicy(
-                getConfig().getDouble("power.watts", 48.0D),
+                getConfig().getDouble("power.base-watts", legacyWatts),
+                getConfig().getDouble("power.watts-per-vault", 0.0D),
                 getConfig().getInt("cargo.items-per-tick", 8)
         );
 
@@ -140,6 +143,21 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         getLogger().info(
                 "VaultWorks ready: portable bulk Vault Cells, six-high powered columns and rear Rebar cargo nodes."
         );
+    }
+
+    private void migrateConfig() {
+        boolean hasLegacyFixedLoad = getConfig().contains("power.watts", true);
+        boolean hasNewBaseLoad = getConfig().contains("power.base-watts", true);
+
+        if (hasLegacyFixedLoad && !hasNewBaseLoad) {
+            double legacyWatts = getConfig().getDouble("power.watts", 48.0D);
+            getConfig().set("power.base-watts", legacyWatts);
+            getConfig().set("power.watts-per-vault", 0.0D);
+            getConfig().set("power.watts", null);
+            saveConfig();
+            getLogger().info("Migrated legacy fixed Vault power load to base-watts="
+                    + legacyWatts + " with watts-per-vault=0 to preserve existing behavior.");
+        }
     }
 
     private static RecipeChoice exact(ItemStack stack) {
