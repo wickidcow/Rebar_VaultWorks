@@ -69,7 +69,7 @@ The terminal rebuilds its normal browse pages only when it is loaded or when **R
 
 Click **Search Vault Network** to open an anvil-backed live search. The network is captured once when search opens; typing filters only that in-memory snapshot. Plain words match the player's rendered item name, `@namespace` filters by addon/namespace, `#online` requires currently accessible stock, and `#offline` finds items with some stock unavailable.
 
-Item buttons remain intentionally non-interactive in this phase; transactional withdraw/deposit comes after the read path is proven stable.
+Item buttons remain intentionally non-interactive in this phase. Underneath the browser, VaultWorks now has revision-aware withdrawal planning: each future withdrawal identifies exact endpoint UUIDs/revisions and must revalidate the live topology before commit. The next step is a persisted Terminal claim buffer so storage-to-player delivery does not introduce an unrecoverable crash window.
 
 Rebar cargo is the external machine-I/O layer, not VaultWorks' future internal network protocol. The planned Vault Index and Vault Terminal will perform validated operations directly against attached Vault Cells, while future import/export interfaces will bridge indexed storage to Rebar cargo.
 
