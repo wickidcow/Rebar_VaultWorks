@@ -142,31 +142,18 @@ public final class VaultTransmitter extends VaultTerminal implements
                     : AccessStatus.OUT_OF_RANGE;
         }
 
-        boolean crossWorldEnabled = VaultWorks.instance()
-                .getConfig()
-                .getBoolean("wireless.allow-cross-dimension", true);
-        return crossWorldEnabled && hasDimensionalAntenna()
+        return VaultWorks.instance().wirelessPolicy().allowCrossDimension()
+                && hasDimensionalAntenna()
                 ? AccessStatus.ALLOWED
                 : AccessStatus.DIMENSIONAL_ANTENNA_REQUIRED;
     }
 
     public double effectiveRange() {
-        double base = boundedRange(
-                VaultWorks.instance().getConfig().getDouble("wireless.base-range-blocks", 64.0D)
-        );
+        WirelessPolicy policy = VaultWorks.instance().wirelessPolicy();
         if (!hasAntenna()) {
-            return base;
+            return policy.baseRangeBlocks();
         }
-
-        return Math.max(
-                base,
-                boundedRange(
-                        VaultWorks.instance().getConfig().getDouble(
-                                "wireless.antenna-range-blocks",
-                                512.0D
-                        )
-                )
-        );
+        return policy.antennaRangeBlocks();
     }
 
     public boolean hasAntenna() {
@@ -197,17 +184,7 @@ public final class VaultTransmitter extends VaultTerminal implements
     }
 
     private void refreshPowerDemand() {
-        double watts = VaultWorks.instance()
-                .getConfig()
-                .getDouble("wireless.transmitter-watts", 32.0D);
-        setRequiredPower(Math.max(1.0D, Math.min(watts, 1_000_000.0D)));
-    }
-
-    private static double boundedRange(double configured) {
-        if (!Double.isFinite(configured)) {
-            return 64.0D;
-        }
-        return Math.max(8.0D, Math.min(configured, 8192.0D));
+        setRequiredPower(VaultWorks.instance().wirelessPolicy().transmitterWatts());
     }
 
     private static UUID loadId(String raw) {
