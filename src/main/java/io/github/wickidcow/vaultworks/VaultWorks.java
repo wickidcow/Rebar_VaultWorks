@@ -82,7 +82,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         RebarBlock.register(poweredKey, Material.VAULT, PoweredVaultCell.class);
 
         RebarItem.register(RebarItem.class, powerBaseItem, powerBaseKey);
-        RebarItem.register(RebarItem.class, cargoNodeItem, cargoNodeKey);
+        RebarItem.register(VaultCargoNodeItem.class, cargoNodeItem, cargoNodeKey);
         RebarItem.register(VaultCellItem.class, basicItem, basicKey);
         RebarItem.register(VaultCellItem.class, poweredItem, poweredKey);
 
