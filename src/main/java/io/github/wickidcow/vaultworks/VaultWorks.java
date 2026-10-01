@@ -44,6 +44,8 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         }
 
         instance = this;
+        java.util.Objects.requireNonNull(getCommand("vaultworks"))
+                .setExecutor(new VaultWorksCommand(this));
         saveDefaultConfig();
         migrateConfig();
         double legacyWatts = getConfig().getDouble("power.watts", 48.0D);
@@ -307,6 +309,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
     VaultEndpointRegistry endpointRegistry() {
         return endpointRegistry;
+    }
+
+    int registeredRecipeCount() {
+        return recipes.size();
     }
 
     @Override
