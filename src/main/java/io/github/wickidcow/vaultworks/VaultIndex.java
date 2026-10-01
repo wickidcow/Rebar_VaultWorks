@@ -82,8 +82,7 @@ public final class VaultIndex extends RebarBlock implements GuiRebarBlock {
         @Override
         public @NotNull ItemProvider getItemProvider(@NotNull Player viewer) {
             VaultNetworkSnapshot snapshot = VaultNetworkScanner.scan(VaultIndex.this);
-            int configuredMax = VaultWorks.instance().getConfig().getInt("index.max-network-nodes", 4096);
-            int maxNodes = Math.max(32, Math.min(configuredMax, 65_536));
+            int maxNodes = VaultWorks.instance().storagePolicy().maxNetworkNodes();
 
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("Network nodes: " + BasicVaultCell.format(snapshot.networkNodes())
