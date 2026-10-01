@@ -59,7 +59,7 @@ This phase is intentionally **read-only**. The Index owns metadata only; it does
 
 Craft and connect a **Vault Terminal** anywhere on the same Vault Link topology. The terminal groups items by their full serialized one-item identity, so custom Rebar/Pylon item data stays distinct. It shows 36 item types per page with total stored amount, currently accessible amount and the number of Vault Cells holding that exact item.
 
-The terminal rebuilds its pages only when it is loaded or when **Refresh Terminal** is clicked. There is no per-terminal polling task. Item buttons are intentionally non-interactive in this phase; transactional withdraw/deposit comes after the read path is proven stable.
+The terminal rebuilds its pages only when it is loaded or when **Refresh Terminal** is clicked. There is no per-terminal polling task. A single render materializes at most `terminal.max-item-types` entries (default 4096, hard cap 16384); the network summary still reports the full discovered type count and warns if the displayed list is truncated. Item buttons are intentionally non-interactive in this phase; transactional withdraw/deposit comes after the read path is proven stable.
 
 Rebar cargo is the external machine-I/O layer, not VaultWorks' future internal network protocol. The planned Vault Index and Vault Terminal will perform validated operations directly against attached Vault Cells, while future import/export interfaces will bridge indexed storage to Rebar cargo.
 
