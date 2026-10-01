@@ -531,7 +531,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     @Override
     public @NotNull Component getGuiTitle() {
-        return Component.text("Basic Vault Cell — " + (isOperational() ? "Online" : "Offline"));
+        return Component.text("Basic Vault Cell — "
+                + (identityConflict ? "LOCKED / ID CONFLICT" : (isOperational() ? "Online" : "Offline")));
     }
 
     @Override
@@ -799,7 +800,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             String percent = capacity <= 0L ? "0" : String.format(Locale.US, "%.1f", (storedAmount * 100.0D) / capacity);
             boolean online = isOperational();
             return ItemStackBuilder.of(online ? Material.COPPER_BULB : Material.EXPOSED_COPPER_BULB)
-                    .name(Component.text("Vault Status — " + (online ? "ONLINE" : "OFFLINE")))
+                    .name(Component.text("Vault Status — "
+                            + (identityConflict ? "LOCKED / ID CONFLICT" : (online ? "ONLINE" : "OFFLINE"))))
                     .lore(
                             Component.text("Stored: " + format(storedAmount) + " / " + format(capacity)),
                             Component.text("Used: " + percent + "%"),
