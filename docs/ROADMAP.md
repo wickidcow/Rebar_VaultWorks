@@ -96,10 +96,17 @@ Implemented transaction groundwork:
 - commit-time topology/revision/amount revalidation;
 - deterministic smallest-source-first allocation.
 
+Implemented delivery groundwork:
+
+- five-slot persisted Terminal claim buffer;
+- player-output-only slot policy;
+- safe buffer restore through Rebar virtual-inventory persistence;
+- safe claim-content drops when a Terminal is broken.
+
 Still to implement:
 
-- persisted Terminal claim/delivery buffer;
-- transactional withdrawal commit into that buffer;
+- transactional withdrawal commit into the claim buffer;
+- write-ahead/recovery protocol for crash-safe source-to-buffer commit;
 - transactional deposit;
 - concurrent-use, restart and double-click anti-overdraw tests.
 

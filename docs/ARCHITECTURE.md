@@ -198,6 +198,20 @@ This means a Terminal page or search snapshot is never authorization to mutate s
 
 The next commit layer should deliver into a persisted Terminal-owned claim buffer rather than directly into a player's inventory. That keeps the authoritative storage-to-storage handoff recoverable before external player inventory delivery is attempted.
 
+## Implemented Terminal claim buffer
+
+The Vault Terminal now has a five-slot Rebar/InvUI `VirtualInventory` registered through `VirtualInventoryRebarBlock`.
+
+Claim-buffer invariants:
+
+- it is persisted/restored by Rebar with the Terminal block;
+- players may remove items but cannot add or swap items into it;
+- breaking the Terminal drops any remaining claim contents through Rebar's standard virtual-inventory break handling;
+- search/browse snapshots still do not mutate or populate the buffer;
+- network withdrawal is not yet enabled.
+
+This is intentionally the destination side of the future commit protocol. A future withdrawal should move authoritative physical Vault stock into this persisted plugin-owned buffer before the player takes possession, rather than removing from Vault storage and directly calling the player's inventory API.
+
 ## Transaction model
 
 Any operation moving items across VaultWorks must be transactional enough to survive partial failure.
