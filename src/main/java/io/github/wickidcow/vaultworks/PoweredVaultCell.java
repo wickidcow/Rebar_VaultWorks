@@ -27,8 +27,8 @@ public final class PoweredVaultCell extends BasicVaultCell {
     }
 
     @Override
-    protected String capacityConfigKey() {
-        return "storage.powered-capacity";
+    protected long configuredCapacity(StoragePolicy policy) {
+        return policy.poweredCapacity();
     }
 
     @Override
