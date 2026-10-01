@@ -26,6 +26,10 @@ public final class VaultDisplayManager {
     }
 
     public static void update(BasicVaultCell cell) {
+        update(cell, cell.isOperational());
+    }
+
+    public static void update(BasicVaultCell cell, boolean online) {
         ItemStack registered = cell.getStoredItem();
         String owner = owner(cell);
         List<ItemDisplay> displays = findDisplays(cell, owner);
@@ -52,6 +56,8 @@ public final class VaultDisplayManager {
         display.setInvulnerable(true);
         display.setSilent(true);
         display.setPersistent(true);
+        display.setGlowing(online);
+        display.setBrightness(online ? new Display.Brightness(15, 15) : null);
         display.setShadowRadius(0.0F);
         display.setShadowStrength(0.0F);
         display.getPersistentDataContainer().set(OWNER_KEY, PersistentDataType.STRING, owner);
