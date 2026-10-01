@@ -44,6 +44,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         }
 
         instance = this;
+        VaultWorksContentCatalog.validate();
         java.util.Objects.requireNonNull(getCommand("vaultworks"))
                 .setExecutor(new VaultWorksCommand(this));
         saveDefaultConfig();
@@ -225,6 +226,14 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
                 .setIngredient('E', Material.ENDER_PEARL)
                 .setIngredient('C', exact(basicItem)));
 
+        if (recipes.size() != VaultWorksContentCatalog.ALL_IDS.size()) {
+            throw new IllegalStateException(
+                    "VaultWorks recipe count does not match content catalog: "
+                            + recipes.size() + " != "
+                            + VaultWorksContentCatalog.ALL_IDS.size()
+            );
+        }
+
         SimpleStaticGuidePage page = new SimpleStaticGuidePage(new NamespacedKey(this, "vaultworks"));
         page.addItem(circuitItem);
         page.addItem(waferItem);
@@ -244,6 +253,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         guide = new PageButton(Material.VAULT, page);
         RebarGuide.getRootPage().addButton(guide);
 
+        getLogger().info(
+                "Validated " + VaultWorksContentCatalog.ALL_IDS.size()
+                        + " VaultWorks content entries and survival recipes."
+        );
         getLogger().info(
                 "VaultWorks ready: powered portable storage, transactional terminals, explicit indexing and loaded-only wireless access."
         );
