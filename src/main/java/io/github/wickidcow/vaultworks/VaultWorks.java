@@ -25,6 +25,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
     private static VaultWorks instance;
 
     private PowerPolicy policy;
+    private WirelessPolicy wirelessPolicy;
     private final VaultWirelessRegistry wirelessRegistry = new VaultWirelessRegistry();
     private final VaultEndpointRegistry endpointRegistry = new VaultEndpointRegistry();
     private PageButton guide;
@@ -50,6 +51,12 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
                 getConfig().getDouble("power.base-watts", legacyWatts),
                 getConfig().getDouble("power.watts-per-vault", 0.0D),
                 getConfig().getInt("cargo.items-per-tick", 8)
+        );
+        wirelessPolicy = new WirelessPolicy(
+                getConfig().getDouble("wireless.transmitter-watts", 32.0D),
+                getConfig().getDouble("wireless.base-range-blocks", 64.0D),
+                getConfig().getDouble("wireless.antenna-range-blocks", 512.0D),
+                getConfig().getBoolean("wireless.allow-cross-dimension", true)
         );
 
         registerWithRebar();
@@ -278,6 +285,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         recipes.clear();
         wirelessRegistry.clear();
         endpointRegistry.clear();
+        wirelessPolicy = null;
         instance = null;
     }
 
@@ -287,6 +295,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
     public PowerPolicy policy() {
         return policy;
+    }
+
+    public WirelessPolicy wirelessPolicy() {
+        return java.util.Objects.requireNonNull(wirelessPolicy, "Wireless policy is not loaded");
     }
 
     VaultWirelessRegistry wirelessRegistry() {
