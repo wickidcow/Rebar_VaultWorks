@@ -49,7 +49,7 @@ public final class VaultPowerBase extends RebarBlock implements
     @Override
     public void postInitialise() {
         super.postInitialise();
-        setRequiredPower(VaultWorks.instance().policy().watts());
+        refreshPowerDemand();
 
         ElectricConsumerNode consumer = getElectricNode("consumer_0", ElectricConsumerNode.class);
         if (consumer != null) {
