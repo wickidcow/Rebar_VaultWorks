@@ -8,6 +8,26 @@ final class VaultStorageMath {
     private VaultStorageMath() {
     }
 
+    static long withdrawable(long current, long requested) {
+        if (current <= 0L || requested <= 0L) {
+            return 0L;
+        }
+        return Math.min(current, requested);
+    }
+
+    static long insertable(long current, long capacity, long requested) {
+        if (requested <= 0L) {
+            return 0L;
+        }
+
+        long safeCurrent = Math.max(0L, current);
+        long safeCapacity = Math.max(1L, capacity);
+        if (safeCurrent >= safeCapacity) {
+            return 0L;
+        }
+        return Math.min(requested, safeCapacity - safeCurrent);
+    }
+
     /**
      * Applies a cargo system's proposed final amount to a Vault.
      *
