@@ -65,15 +65,22 @@ Primary goal: the index can be deleted/rebuilt without losing items.
 
 ## Phase 3 — Vault Terminal
 
-Implement:
+Implemented foundation:
 
-- paged search;
-- item count;
-- deposit;
-- withdrawal;
-- validation against physical endpoint state;
-- namespace/addon filters;
-- capacity/network health display.
+- paged exact-item browser;
+- full custom-item identity grouping;
+- total vs currently accessible item counts;
+- per-item Vault Cell count;
+- manual refresh with no background polling;
+- read-only network summary in the Terminal.
+
+Still to implement:
+
+- text search and namespace/addon filters;
+- transactional deposit;
+- transactional withdrawal;
+- validation/reservation against physical endpoint state at commit time;
+- concurrent-use and double-click anti-overdraw tests.
 
 Primary goal: reliable player access under concurrent use.
 

@@ -151,6 +151,14 @@ Preferred flow:
 
 If an endpoint cannot provide precise change events, use a shared conservative sampler for loaded endpoints rather than one repeating task per cell.
 
+## Implemented read-only browser identity
+
+The first Vault Terminal browser groups registered items by Paper's serialized one-item stack representation. This includes gameplay-relevant custom item data and avoids collapsing custom Rebar/Pylon items that merely share a vanilla material.
+
+This serialized identity is currently an **ephemeral read model** rebuilt from physical Vault Cells. It is not yet persisted as the long-term index key. A future persisted/searchable index schema must version its identity format before it becomes durable state.
+
+Terminal rendering is separately bounded from topology traversal so a large valid network cannot cause one GUI open to materialize an unbounded number of button objects.
+
 ## Search
 
 Search should operate on the index, not the physical inventories.
