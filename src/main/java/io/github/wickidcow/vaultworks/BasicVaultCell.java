@@ -719,22 +719,25 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             return;
         }
 
-        int recoveryBefore = legacyRecovery.size();
+        boolean recoveryChanged = false;
         Iterator<ItemStack> iterator = legacyRecovery.iterator();
         while (iterator.hasNext()) {
             ItemStack stack = iterator.next();
+            int beforeAmount = stack.getAmount();
             Map<Integer, ItemStack> leftovers = player.getInventory().addItem(stack.clone());
             if (leftovers.isEmpty()) {
                 iterator.remove();
+                recoveryChanged = true;
                 continue;
             }
 
             ItemStack remaining = leftovers.values().iterator().next();
             stack.setAmount(remaining.getAmount());
+            recoveryChanged |= stack.getAmount() != beforeAmount;
             break;
         }
 
-        if (legacyRecovery.size() != recoveryBefore) {
+        if (recoveryChanged) {
             touchRevision();
         }
         refreshGuiItems();
