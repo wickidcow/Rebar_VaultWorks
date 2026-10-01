@@ -10,6 +10,7 @@ import io.github.pylonmc.rebar.datatypes.RebarSerializers;
 import io.github.pylonmc.rebar.item.RebarItemSchema;
 import io.github.pylonmc.rebar.item.builder.ItemStackBuilder;
 import io.github.pylonmc.rebar.util.gui.GuiItems;
+import io.github.pylonmc.rebar.waila.WailaDisplay;
 import io.papermc.paper.persistence.PersistentDataContainerView;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -414,6 +415,21 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     @Override
     public @NotNull Component getGuiTitle() {
         return Component.text("Basic Vault Cell — " + (isOperational() ? "Online" : "Offline"));
+    }
+
+    @Override
+    public WailaDisplay getWaila(@NotNull Player player) {
+        boolean online = isOperational();
+        WailaDisplay display = WailaDisplay.of(this, player)
+                .add(Component.text(online ? "ONLINE" : "OFFLINE"));
+
+        if (storedItem == null) {
+            return display.add(Component.text("Empty / unregistered"));
+        }
+
+        return display
+                .add(storedItem.effectiveName())
+                .add(Component.text(format(storedAmount) + " / " + format(getCapacity())));
     }
 
     protected boolean registerFromMainHand(Player player) {
