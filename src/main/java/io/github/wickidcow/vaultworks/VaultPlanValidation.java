@@ -14,7 +14,7 @@ record VaultPlanValidation(
         SOURCE_AMOUNT_TOO_LOW
     }
 
-    static VaultPlanValidation valid() {
+    static VaultPlanValidation success() {
         return new VaultPlanValidation(true, Reason.VALID, null);
     }
 
