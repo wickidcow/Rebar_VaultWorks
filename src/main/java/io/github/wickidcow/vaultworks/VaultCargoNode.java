@@ -134,11 +134,13 @@ public final class VaultCargoNode extends RebarBlock implements CargoRebarBlock,
                 return;
             }
 
-            if (amount > vault.storedAmount && vault.purgeOverflow) {
-                vault.storedAmount = Math.min(amount, vault.getCapacity());
-            } else {
-                vault.storedAmount = Math.max(0L, amount);
-            }
+            vault.storedAmount = VaultStorageMath.applyProposedAmount(
+                    vault.storedAmount,
+                    amount,
+                    vault.getCapacity(),
+                    vault.purgeOverflow
+            );
+            vault.refreshGuiItems();
         }
     }
 }
