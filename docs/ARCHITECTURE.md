@@ -86,6 +86,15 @@ VaultWorks should use explicit topology.
 
 A network only contains endpoints connected through VaultWorks network components.
 
+The first implemented topology foundation uses:
+
+- Vault Index — read-only metadata/query root;
+- Vault Link Cable — passive explicit connection;
+- Vault Power Base — column endpoint representing its contiguous Vault Cells;
+- direct adjacency between Power Bases as an optional compact wall connection.
+
+Traversal is iterative, loaded-chunk-only, and bounded by a configurable maximum node count. It does not traverse cargo ducts or electrical wires, so storage topology remains independent from transport and power topology.
+
 Important rules:
 
 - no world scan;
