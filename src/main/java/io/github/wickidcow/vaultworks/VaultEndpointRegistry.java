@@ -52,6 +52,16 @@ final class VaultEndpointRegistry {
         }
     }
 
+    static BasicVaultCell resolveUnique(UUID endpointId) {
+        Set<BasicVaultCell> cells = LOADED.get(endpointId);
+        if (cells == null || cells.size() != 1) {
+            return null;
+        }
+
+        BasicVaultCell cell = cells.iterator().next();
+        return cell.hasIdentityConflict() ? null : cell;
+    }
+
     static int loadedCopies(UUID endpointId) {
         Set<BasicVaultCell> cells = LOADED.get(endpointId);
         return cells == null ? 0 : cells.size();
