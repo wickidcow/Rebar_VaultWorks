@@ -32,6 +32,36 @@ final class VaultNetworkScanner {
         return scanView(index).snapshot();
     }
 
+    static VaultNetworkCells scanAccessibleCells(RebarBlock root) {
+        Topology topology = collectTopology(root);
+        List<BasicVaultCell> cells = new ArrayList<>();
+
+        for (VaultPowerBase base : topology.bases()) {
+            if (!base.isOnline()) {
+                continue;
+            }
+
+            for (int height = 1; height <= BasicVaultCell.MAX_COLUMN_HEIGHT; height++) {
+                BasicVaultCell cell;
+                try {
+                    cell = BlockStorage.getAs(
+                            BasicVaultCell.class,
+                            base.getBlock().getRelative(BlockFace.UP, height)
+                    );
+                } catch (IllegalArgumentException ignored) {
+                    break;
+                }
+
+                if (cell == null) {
+                    break;
+                }
+                cells.add(cell);
+            }
+        }
+
+        return new VaultNetworkCells(cells, topology.truncated());
+    }
+
     static VaultNetworkView scanView(RebarBlock root) {
         Topology topology = collectTopology(root);
 
