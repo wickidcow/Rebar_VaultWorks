@@ -45,16 +45,37 @@ Goal: solve one-room storage without autocrafting.
 
 Planned content:
 
-### Basic Vault Cell
+### Vault Power Base
 
-Physical item storage.
+Physical power mat/pedestal for one Vault column.
 
 Design intent:
 
-- durable;
-- limited capacity;
-- limited type count;
-- usable before a full network exists.
+- one rear-facing Rebar electrical service connection;
+- powers a contiguous vertical stack of up to six Vault Cells;
+- makes power state visually obvious without exposing wire ports on every cell.
+
+### Basic Vault Cell
+
+Single-item bulk physical storage.
+
+Design intent:
+
+- one exact registered item identity;
+- high but bounded item count;
+- one item consumed to register the Vault;
+- portable stored state when broken and replaced;
+- manual controls and automation available only while its column is powered.
+
+### Vault Cargo Node
+
+Rear service adapter for one Vault Cell.
+
+Design intent:
+
+- hides cargo behind a clean storage wall;
+- exposes one outward Rebar cargo connection;
+- stops moving items when the associated Vault column is offline.
 
 ### Vault Index
 
@@ -74,9 +95,9 @@ Goal: larger bases and more useful network interfaces.
 
 An upgraded lattice component.
 
-### Dense Vault Cell
+### Powered Vault Cell
 
-Higher amount/type capacity.
+Higher bulk capacity using the same one-item physical ownership model and the advanced ominous-Vault visual. It still uses the shared Vault Power Base and rear Cargo Node layout.
 
 ### Import Interface
 
@@ -247,6 +268,6 @@ Potential integration:
 
 ### Rebar electricity
 
-Once a released Rebar dependency exposes the electricity API, advanced VaultWorks devices could consume power.
+Vault storage already consumes Rebar electricity through the shared Vault Power Base. Later index, terminal and fabrication devices may add their own normal Rebar power costs.
 
-That should be a normal resource cost, not a VaultWorks-specific power network.
+That remains a resource cost, not a VaultWorks-specific power network.
