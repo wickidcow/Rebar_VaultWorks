@@ -8,7 +8,7 @@ import io.github.pylonmc.rebar.guide.pages.base.SimpleStaticGuidePage;
 import io.github.pylonmc.rebar.item.RebarItem;
 import io.github.pylonmc.rebar.item.builder.ItemStackBuilder;
 import io.github.pylonmc.rebar.recipe.RecipeType;
-import io.github.pylonmc.rebar.recipe.vanilla.ShapedRebarRecipe;
+import io.github.pylonmc.rebar.recipe.vanilla.ShapedRebarRecipe;\nimport io.papermc.paper.datacomponent.DataComponentTypes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -97,10 +97,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         page.addItem(latticeItem);
         page.addItem(basicItem);
         page.addItem(poweredItem);
-        guide = new PageButton(Material.ENDER_CHEST, page);
+        guide = new PageButton(Material.VAULT, page);
         RebarGuide.getRootPage().addButton(guide);
 
-        getLogger().info("VaultWorks storage foundation ready: manual Basic Vault Cell plus powered Rebar cargo storage.");
+        getLogger().info("VaultWorks bulk storage ready: portable Vault Cells, floating item display and powered Rebar cargo.");
     }
 
     private static RecipeChoice exact(ItemStack stack) {
@@ -138,7 +138,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
     }
 
     @Override public Material getMaterial() {
-        return Material.ENDER_CHEST;
+        return Material.VAULT;
     }
 
     @Override public Locale getDefaultLanguage() {
