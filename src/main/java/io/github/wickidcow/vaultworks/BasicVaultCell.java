@@ -10,6 +10,7 @@ import io.github.pylonmc.rebar.datatypes.RebarSerializers;
 import io.github.pylonmc.rebar.item.RebarItemSchema;
 import io.github.pylonmc.rebar.item.builder.ItemStackBuilder;
 import io.github.pylonmc.rebar.util.gui.GuiItems;
+import io.papermc.paper.persistence.PersistentDataContainerView;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
