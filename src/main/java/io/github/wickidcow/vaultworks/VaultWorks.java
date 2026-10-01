@@ -26,6 +26,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
     private PowerPolicy policy;
     private final VaultWirelessRegistry wirelessRegistry = new VaultWirelessRegistry();
+    private final VaultEndpointRegistry endpointRegistry = new VaultEndpointRegistry();
     private PageButton guide;
     private final List<NamespacedKey> recipes = new ArrayList<>();
 
@@ -276,6 +277,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         }
         recipes.clear();
         wirelessRegistry.clear();
+        endpointRegistry.clear();
         instance = null;
     }
 
@@ -289,6 +291,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
     VaultWirelessRegistry wirelessRegistry() {
         return wirelessRegistry;
+    }
+
+    VaultEndpointRegistry endpointRegistry() {
+        return endpointRegistry;
     }
 
     @Override
