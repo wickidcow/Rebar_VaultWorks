@@ -128,13 +128,12 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
     }
 
-    protected String capacityConfigKey() {
-        return "storage.basic-capacity";
+    protected long configuredCapacity(StoragePolicy policy) {
+        return policy.basicCapacity();
     }
 
     public long getCapacity() {
-        long configured = VaultWorks.instance().getConfig().getLong(capacityConfigKey(), 1_000_000L);
-        return Math.max(1L, configured);
+        return configuredCapacity(VaultWorks.instance().storagePolicy());
     }
 
     public ItemStack getStoredItem() {
