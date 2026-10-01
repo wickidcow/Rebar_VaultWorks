@@ -156,8 +156,7 @@ final class VaultNetworkScanner {
                 topology.truncated()
         );
 
-        int configuredItems = VaultWorks.instance().getConfig().getInt("terminal.max-item-types", 4096);
-        int maxItems = Math.max(128, Math.min(configuredItems, 16_384));
+        int maxItems = VaultWorks.instance().storagePolicy().maxTerminalItemTypes();
         boolean itemsTruncated = items.size() > maxItems;
         List<VaultItemSummary> displayedItems = itemsTruncated
                 ? List.copyOf(items.subList(0, maxItems))
@@ -167,8 +166,7 @@ final class VaultNetworkScanner {
     }
 
     private static Topology collectTopology(RebarBlock root) {
-        int configuredMax = VaultWorks.instance().getConfig().getInt("index.max-network-nodes", 4096);
-        int maxNodes = Math.max(32, Math.min(configuredMax, 65_536));
+        int maxNodes = VaultWorks.instance().storagePolicy().maxNetworkNodes();
 
         Queue<Block> queue = new ArrayDeque<>();
         Set<NodePos> visited = new HashSet<>();
