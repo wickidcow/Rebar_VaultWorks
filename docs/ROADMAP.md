@@ -89,12 +89,19 @@ Implemented search:
 - `#online` / `#offline` availability filters;
 - one captured topology snapshot per search session, with no per-keystroke rescans.
 
+Implemented transaction groundwork:
+
+- bounded source selection from the current explicit topology;
+- endpoint UUID + expected revision captured per source;
+- commit-time topology/revision/amount revalidation;
+- deterministic smallest-source-first allocation.
+
 Still to implement:
 
+- persisted Terminal claim/delivery buffer;
+- transactional withdrawal commit into that buffer;
 - transactional deposit;
-- transactional withdrawal;
-- validation/reservation against physical endpoint state at commit time;
-- concurrent-use and double-click anti-overdraw tests.
+- concurrent-use, restart and double-click anti-overdraw tests.
 
 Primary goal: reliable player access under concurrent use.
 

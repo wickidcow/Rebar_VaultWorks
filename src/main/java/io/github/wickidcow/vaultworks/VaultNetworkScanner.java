@@ -44,7 +44,7 @@ final class VaultNetworkScanner {
         long accessibleStored = 0L;
         long totalCapacity = 0L;
 
-        Map<ItemIdentity, MutableItemSummary> itemTotals = new HashMap<>();
+        Map<VaultItemIdentity, MutableItemSummary> itemTotals = new HashMap<>();
 
         for (VaultPowerBase base : topology.bases()) {
             boolean online = base.isOnline();
@@ -84,7 +84,7 @@ final class VaultNetworkScanner {
                 if (item != null && !item.isEmpty()) {
                     registered++;
                     ItemStack normalized = item.asOne();
-                    ItemIdentity identity = ItemIdentity.of(normalized);
+                    VaultItemIdentity identity = VaultItemIdentity.of(normalized);
                     MutableItemSummary summary = itemTotals.computeIfAbsent(
                             identity,
                             ignored -> new MutableItemSummary(normalized)
@@ -141,6 +141,39 @@ final class VaultNetworkScanner {
                 : List.copyOf(items);
 
         return new VaultNetworkView(snapshot, displayedItems, itemsTruncated);
+    }
+
+    static List<BasicVaultCell> findAccessibleCells(RebarBlock root, ItemStack requestedItem) {
+        VaultItemIdentity requestedIdentity = VaultItemIdentity.of(requestedItem);
+        Topology topology = collectTopology(root);
+        List<BasicVaultCell> matches = new ArrayList<>();
+
+        for (VaultPowerBase base : topology.bases()) {
+            for (int height = 1; height <= BasicVaultCell.MAX_COLUMN_HEIGHT; height++) {
+                BasicVaultCell cell;
+                try {
+                    cell = BlockStorage.getAs(
+                            BasicVaultCell.class,
+                            base.getBlock().getRelative(BlockFace.UP, height)
+                    );
+                } catch (IllegalArgumentException ignored) {
+                    break;
+                }
+
+                if (cell == null) {
+                    break;
+                }
+
+                ItemStack stored = cell.getStoredItem();
+                if (cell.isOperational()
+                        && cell.getStoredAmount() > 0L
+                        && requestedIdentity.matches(stored)) {
+                    matches.add(cell);
+                }
+            }
+        }
+
+        return List.copyOf(matches);
     }
 
     private static Topology collectTopology(RebarBlock root) {
@@ -223,30 +256,6 @@ final class VaultNetworkScanner {
             return Long.MAX_VALUE;
         }
         return left + right;
-    }
-
-    private static final class ItemIdentity {
-        private final byte[] bytes;
-        private final int hash;
-
-        private ItemIdentity(byte[] bytes) {
-            this.bytes = bytes;
-            this.hash = Arrays.hashCode(bytes);
-        }
-
-        static ItemIdentity of(ItemStack item) {
-            return new ItemIdentity(item.asOne().serializeAsBytes());
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return other instanceof ItemIdentity identity && Arrays.equals(bytes, identity.bytes);
-        }
-
-        @Override
-        public int hashCode() {
-            return hash;
-        }
     }
 
     private static final class MutableItemSummary {

@@ -182,6 +182,22 @@ Search results can be paged and ranked without touching every stored stack.
 
 Withdrawal still validates against live physical storage.
 
+## Implemented withdrawal planning boundary
+
+VaultWorks now has a revision-aware withdrawal planner, but it still does **not** commit Terminal item movement.
+
+A plan is built from the currently connected and operational physical Vault Cells. Each source entry records:
+
+- stable endpoint UUID;
+- expected endpoint revision;
+- amount planned from that endpoint.
+
+Before a future commit, VaultWorks re-walks the current explicit topology and resolves each source through the loaded endpoint registry. The plan is rejected if a source is no longer connected/accessible, if its revision changed, or if its stored amount is now too low.
+
+This means a Terminal page or search snapshot is never authorization to mutate storage. Cargo movement, player access, power loss, block movement, identity conflicts, or any other storage mutation can invalidate the old plan.
+
+The next commit layer should deliver into a persisted Terminal-owned claim buffer rather than directly into a player's inventory. That keeps the authoritative storage-to-storage handoff recoverable before external player inventory delivery is attempted.
+
 ## Transaction model
 
 Any operation moving items across VaultWorks must be transactional enough to survive partial failure.
