@@ -83,6 +83,6 @@ final class VaultWithdrawalPlanner {
             }
         }
 
-        return VaultPlanValidation.valid();
+        return VaultPlanValidation.success();
     }
 }
