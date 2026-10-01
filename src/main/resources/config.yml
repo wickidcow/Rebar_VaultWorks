@@ -1,15 +1,16 @@
-# Native Rebar electricity, in watts. Restart after changes.
+# One Vault Power Base supplies one contiguous column of up to six Vault Cells.
+# Power is consumed by the base; Vault Cells themselves have no visible wire port.
 power:
-  watts: 32.0
+  watts: 48.0
 
-# Rebar applies its own global cargo transfer multiplier to this value.
+# Rebar applies its global cargo transfer multiplier to the rear Vault Cargo Node.
 cargo:
   items-per-tick: 8
 
 storage:
   # Single-item bulk capacity. Existing contents are never truncated if this is lowered.
   basic-capacity: 1000000
-  powered-capacity: 1000000
+  powered-capacity: 4000000
 
   # Safety default: false means excess input remains at the source.
   # Players may enable purge per Vault Cell from its GUI.
