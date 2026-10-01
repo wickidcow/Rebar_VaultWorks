@@ -33,7 +33,7 @@ Requires Paper 26.2, Java 25, and the electricity-enabled Rebar development serv
 
 1. Place a **Vault Power Base** first. Its front should face the player/storage aisle; its electrical port is on the **rear service side** so wiring can stay hidden.
 2. Stack **1–6 Vault Cells directly above the base**. A seventh placement is rejected.
-3. Connect Rebar electricity to the rear of the base. The current default base load is **48 W**.
+3. Connect Rebar electricity to the rear of the base. Default demand is **16 W base + 8 W per contiguous Vault**: 24 W for one Vault and 64 W for a full six-high column.
 4. When power is available, the base lights and each registered item display inside the connected Vaults brightens/glows. The vanilla Vault block itself stays in its inert state so VaultWorks does not trigger Mojang's trial-key/reward behavior. Without power, Vault storage controls and cargo operations are locked, but stored data remains safe.
 5. Open a Vault and hold the item you want to store. Registering consumes exactly **1 item** and permanently keys that Vault to that exact item identity until the count reaches zero and the registration is cleared.
 6. Place a **Vault Cargo Node directly behind a Vault Cell**. Connect Rebar cargo to the node's outward-facing side. The front of the Vault wall remains clean.
@@ -44,7 +44,7 @@ The Power Base uses a lit copper-bulb shell as the safe vanilla fallback for the
 
 Rebar cargo is the external machine-I/O layer, not VaultWorks' future internal network protocol. The planned Vault Index and Vault Terminal will perform validated operations directly against attached Vault Cells, while future import/export interfaces will bridge indexed storage to Rebar cargo.
 
-`power.watts` and `cargo.items-per-tick` are configurable; restart after changing them. Rebar's global cargo multiplier also applies. The storage foundation has no world scan, forced chunk loading, or per-Vault polling task.
+`power.base-watts`, `power.watts-per-vault`, and `cargo.items-per-tick` are configurable; restart after changing them. Rebar's global cargo multiplier also applies. The storage foundation has no world scan, forced chunk loading, or per-Vault polling task.
 
 Build with Java 25: `./gradlew clean build`. The raw plugin JAR is in `build/libs/`.
 
