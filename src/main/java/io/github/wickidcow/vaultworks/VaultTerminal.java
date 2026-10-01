@@ -58,7 +58,7 @@ public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
                         "< # # # # # # # >"
                 )
                 .addIngredient('#', GuiItems.backgroundBlack())
-                .addIngredient('s', new NetworkSummaryButton(view.snapshot()))
+                .addIngredient('s', new NetworkSummaryButton(view.snapshot(), view.itemsTruncated()))
                 .addIngredient('r', new RefreshButton())
                 .addIngredient('x', Markers.CONTENT_LIST_SLOT_HORIZONTAL)
                 .addIngredient('<', GuiItems.pagePrevious())
@@ -104,9 +104,15 @@ public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
 
     private final class NetworkSummaryButton extends AbstractItem {
         private final VaultNetworkSnapshot snapshot;
+        private final boolean itemsTruncated;
 
         private NetworkSummaryButton(VaultNetworkSnapshot snapshot) {
+            this(snapshot, false);
+        }
+
+        private NetworkSummaryButton(VaultNetworkSnapshot snapshot, boolean itemsTruncated) {
             this.snapshot = snapshot;
+            this.itemsTruncated = itemsTruncated;
         }
 
         @Override
@@ -118,6 +124,9 @@ public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
             lore.add(Component.text("Accessible items: " + BasicVaultCell.format(snapshot.accessibleStored())));
             if (snapshot.truncated()) {
                 lore.add(Component.text("Warning: network traversal hit the safety limit."));
+            }
+            if (itemsTruncated) {
+                lore.add(Component.text("Warning: displayed item types hit the Terminal safety limit."));
             }
 
             return ItemStackBuilder.of(Material.COMPASS)
