@@ -42,8 +42,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
         instance = this;
         saveDefaultConfig();
+        double legacyWatts = getConfig().getDouble("power.watts", 48.0D);
         policy = new PowerPolicy(
-                getConfig().getDouble("power.watts", 48.0D),
+                getConfig().getDouble("power.base-watts", legacyWatts),
+                getConfig().getDouble("power.watts-per-vault", 0.0D),
                 getConfig().getInt("cargo.items-per-tick", 8)
         );
 
