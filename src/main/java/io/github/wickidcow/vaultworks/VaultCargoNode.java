@@ -7,9 +7,12 @@ import io.github.pylonmc.rebar.block.interfaces.CargoRebarBlock;
 import io.github.pylonmc.rebar.block.interfaces.DirectionalRebarBlock;
 import io.github.pylonmc.rebar.logistics.LogisticGroupType;
 import io.github.pylonmc.rebar.logistics.slot.LogisticSlot;
+import io.github.pylonmc.rebar.waila.WailaDisplay;
 import java.util.List;
+import net.kyori.adventure.text.Component;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.jetbrains.annotations.NotNull;
@@ -70,6 +73,25 @@ public final class VaultCargoNode extends RebarBlock implements CargoRebarBlock,
         } catch (IllegalArgumentException ignored) {
             return null;
         }
+    }
+
+    @Override
+    public WailaDisplay getWaila(@NotNull Player player) {
+        BasicVaultCell vault = targetVault();
+        WailaDisplay display = WailaDisplay.of(this, player);
+        if (vault == null) {
+            return display.add(Component.text("UNLINKED"));
+        }
+
+        display.add(Component.text(vault.isOperational() ? "ONLINE" : "OFFLINE"));
+        ItemStack stored = vault.getStoredItem();
+        if (stored == null) {
+            return display.add(Component.text("Vault unregistered"));
+        }
+
+        return display
+                .add(stored.effectiveName())
+                .add(Component.text(BasicVaultCell.format(vault.getStoredAmount()) + " stored"));
     }
 
     private final class VaultBulkSlot implements LogisticSlot {
