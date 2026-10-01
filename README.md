@@ -12,7 +12,7 @@ There is no magic global inventory object and no world-wide storage scan.
 
 ## Project status
 
-**0.2.0-SNAPSHOT: portable bulk Vault storage and powered-column foundation implemented.**
+**0.3.0-SNAPSHOT: release-candidate storage network with transactional and wireless access.**
 
 Available now:
 
@@ -23,14 +23,19 @@ Available now:
 - **Vault Cargo Node** — sits directly behind one Vault Cell and exposes one outward Rebar cargo connection.
 - **Vault Link Cable** — passive explicit topology for metadata/index connections.
 - **Vault Index** — read-only network overview across explicitly connected loaded Power Bases.
-- **Vault Terminal** — paged exact-item browser showing total and currently accessible stock.
+- **Vault Terminal** — paged/searchable inventory with transactional deposit and withdrawal against live physical cells.
+- **Vault Transmitter** — powered wireless access point that reuses the same terminal transaction path.
+- **Vault Antenna** — extends same-world portable-terminal range.
+- **Dimensional Vault Antenna** — permits cross-world/dimension access while the source transmitter is loaded and powered.
+- **Wireless Vault Terminal** — bindable portable terminal for player inventory access away from the storage room.
+- Persistent Vault endpoint UUIDs and monotonic storage revisions for safe identity/change tracking.
 - Floating registered-item display inside each Vault.
 - Quick deposit, quick withdraw, clear-registration control and per-Vault overflow-purge toggle.
 - Filled Vault Cells keep their stored item, count and overflow setting inside the dropped Vault item when broken, so the cell can be moved and placed elsewhere without dumping its contents.
 
 Requires Paper 26.2, Java 25, and the electricity-enabled Rebar development server JAR from upstream commit `5e34938f044dc63c103213e80b07484bf4994639`. The build pins API snapshot `1.0.0-20260929.193904-140`. Rebar's stable 0.43.0-26.2 server JAR cannot load this build; the Maven API artifact is not the server plugin.
 
-[Download the raw 0.2.0-SNAPSHOT JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.2.0-SNAPSHOT.jar). Place it directly in `plugins/` and restart.
+[Download the rolling raw 0.3.0-SNAPSHOT JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.3.0-SNAPSHOT.jar). Place it directly in `plugins/` and restart. The rolling development JAR is published only after the main branch passes build, package, live Paper/Rebar startup, `/vaultworks doctor`, clean shutdown, and byte-for-byte rebuild verification.
 
 ### Build a Vault column
 
@@ -53,7 +58,7 @@ The Power Base uses a lit copper-bulb shell as the safe vanilla fallback for the
 4. Use **Refresh Index** after changing the network. Traversal is bounded by `index.max-network-nodes` (default 4096).
 5. The Index follows only loaded Vault Index, Vault Link and Vault Power Base blocks. It never scans the world and never force-loads chunks.
 
-This phase is intentionally **read-only**. The Index owns metadata only; it does not own, withdraw or insert items. Searchable terminal mutation comes after topology and identity rules are proven.
+The Index remains intentionally **read-only metadata**. Item movement belongs to the Terminal transaction layer, which re-resolves loaded powered physical Vault Cells at commit time rather than mutating cached index results.
 
 ### Browse the Vault Terminal
 
@@ -63,7 +68,20 @@ The terminal rebuilds its normal browse pages only when it is loaded or when **R
 
 Click **Search Vault Network** to open an anvil-backed live search. The network is captured once when search opens; typing filters only that in-memory snapshot. Plain words match the player's rendered item name, `@namespace` filters by addon/namespace, `#online` requires currently accessible stock, and `#offline` finds items with some stock unavailable.
 
-Item buttons remain intentionally non-interactive in this phase; transactional withdraw/deposit comes after the read path is proven stable.
+Item buttons are transactional: **left-click** withdraws one stack, **right-click** withdraws one item, **Shift + left-click** withdraws as much as the player's inventory can fit, and **Shift + right-click** deposits all matching items. The top-row hopper deposits all inventory items that already have matching registered online Vault Cells. Empty cells are never silently auto-keyed and player terminal deposits never use overflow purge.
+
+Every transaction scans the loaded topology once, rejects a truncated network, revalidates the physical cell immediately before mutation, and compensates unexpected insertion/delivery shortfalls. Search results are only a view; they are never the authoritative inventory.
+
+### Wireless and cross-dimensional access
+
+1. Connect a **Vault Transmitter** to the same Vault Link topology as the storage network and provide Rebar electricity.
+2. **Sneak + right-click** the transmitter with a **Wireless Vault Terminal** to bind it.
+3. Right-click the portable terminal within the configured base range (64 blocks by default).
+4. Place a **Vault Antenna** directly adjacent to the transmitter to extend same-world range (512 blocks by default).
+5. Place a **Dimensional Vault Antenna** directly adjacent to permit access from another world/dimension when enabled in config.
+6. The transmitter must remain **loaded and powered**. VaultWorks never loads its chunk or any storage chunk just because a remote player opens the terminal.
+
+No world name is hard-coded into dimensional access, so future worlds/dimensions can use the same transmitter rules without a data migration.
 
 Rebar cargo is the external machine-I/O layer, not VaultWorks' future internal network protocol. The planned Vault Index and Vault Terminal will perform validated operations directly against attached Vault Cells, while future import/export interfaces will bridge indexed storage to Rebar cargo.
 
@@ -120,15 +138,17 @@ They should:
 
 The Vault Terminal is the player's searchable view of the indexed network.
 
-Planned terminal functions:
+Current terminal functions:
 
 - search all indexed items;
-- insert and withdraw;
-- sort/filter;
-- show total stored counts;
-- show which cells hold an item;
-- expose storage health and capacity;
-- optionally pin favorites.
+- transactional insert and withdraw;
+- paged sorting/filtering;
+- show total and currently accessible counts;
+- show how many cells hold an item;
+- expose network health and capacity;
+- support the same interface through a bound wireless terminal.
+
+Favorites/pinned stock remain optional quality-of-life work rather than a storage prerequisite.
 
 ### 4. Request crafting
 
