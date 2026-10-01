@@ -45,6 +45,12 @@ Requires Paper 26.2, Java 25, and the electricity-enabled Rebar development serv
 
 The Power Base uses a lit copper-bulb shell as the safe vanilla fallback for the “powered bedrock / power mat” idea. It remains normally breakable; VaultWorks does not turn the actual world block into unbreakable Bedrock.
 
+### Portable endpoint identity
+
+Every Vault Cell now owns a stable endpoint UUID and monotonic revision. Both values travel with the filled Vault item when it is broken and placed elsewhere. Existing pre-identity snapshots generate an endpoint UUID on first load without changing their stored item/count.
+
+If two loaded Vault Cells ever present the same endpoint UUID, VaultWorks treats that as a duplication/corruption fault. **All loaded copies are locked from manual and automated mutation**, their contents remain preserved, and the conflict flag is persisted into the portable item. Unloading one copy does not silently unlock the other. The Index and Terminal report conflicted Vaults as preserved-but-inaccessible stock.
+
 ### Build a read-only Vault Index
 
 1. Place a **Vault Index**.
