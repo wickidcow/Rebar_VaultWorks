@@ -191,7 +191,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
 
         storedAmount += accepted;
-        refreshGuiItems();
+        markStorageChanged();
         return accepted;
     }
 
@@ -207,7 +207,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
 
         storedAmount -= removed;
-        refreshGuiItems();
+        markStorageChanged();
         return removed;
     }
 
@@ -224,7 +224,16 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             throw new IllegalStateException("Vault transaction rollback would overflow stored amount");
         }
         storedAmount += amount;
-        refreshGuiItems();
+        markStorageChanged();
+    }
+
+    synchronized void setAmountFromCargo(long nextAmount) {
+        long normalized = Math.max(0L, nextAmount);
+        if (storedAmount == normalized) {
+            return;
+        }
+        storedAmount = normalized;
+        markStorageChanged();
     }
 
     public boolean isPurgeOverflow() {
@@ -314,7 +323,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         storedItem = stack.asOne();
         storedAmount = 1L;
         VaultDisplayManager.update(this);
-        refreshGuiItems();
+        markStorageChanged();
     }
 
     protected void setStoredState(ItemStack stack, long amount) {
@@ -325,7 +334,18 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                 throw new IllegalArgumentException("Attempted to store a different item type in a keyed Vault Cell");
             }
         }
-        storedAmount = Math.max(0L, amount);
+        long nextAmount = Math.max(0L, amount);
+        if (storedAmount != nextAmount) {
+            storedAmount = nextAmount;
+            markStorageChanged();
+        }
+    }
+
+    private void markStorageChanged() {
+        if (storageRevision < Long.MAX_VALUE) {
+            storageRevision++;
+        }
+        refreshGuiItems();
     }
 
     protected void refreshGuiItems() {
@@ -646,7 +666,11 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             }
         }
 
-        refreshGuiItems();
+        if (accepted > 0L) {
+            markStorageChanged();
+        } else {
+            refreshGuiItems();
+        }
         if (accepted > 0 || voided > 0) {
             player.sendMessage(Component.text("Deposited " + format(accepted)
                     + (voided > 0 ? " and purged " + format(voided) + " overflow." : ".")));
@@ -684,7 +708,11 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             }
         }
 
-        refreshGuiItems();
+        if (removed > 0L) {
+            markStorageChanged();
+        } else {
+            refreshGuiItems();
+        }
         if (removed == 0L) {
             player.sendMessage(Component.text("Your inventory is full."));
         }
@@ -717,7 +745,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
         storedItem = null;
         VaultDisplayManager.update(this);
-        refreshGuiItems();
+        markStorageChanged();
         player.sendMessage(Component.text("Vault Cell registration cleared."));
     }
 
@@ -744,7 +772,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             break;
         }
 
-        refreshGuiItems();
+        markStorageChanged();
         if (legacyRecovery.isEmpty()) {
             player.sendMessage(Component.text("Legacy Vault contents fully recovered."));
         } else {
