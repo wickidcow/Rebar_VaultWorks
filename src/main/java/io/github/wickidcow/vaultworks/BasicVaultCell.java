@@ -1,5 +1,6 @@
 package io.github.wickidcow.vaultworks;
 
+import io.github.pylonmc.rebar.block.BlockStorage;
 import io.github.pylonmc.rebar.block.RebarBlock;
 import io.github.pylonmc.rebar.block.context.BlockBreakContext;
 import io.github.pylonmc.rebar.block.context.BlockCreateContext;
@@ -18,6 +19,7 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.Vault;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
@@ -38,6 +40,8 @@ import xyz.xenondevs.invui.item.ItemProvider;
  * dropped Vault Cell item, so breaking/replacing a cell never sprays its contents.
  */
 public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBreakRebarBlockHandler {
+
+    public static final int MAX_COLUMN_HEIGHT = 6;
 
     private static final NamespacedKey STORED_ITEM_KEY = new NamespacedKey("vaultworks", "stored_item");
     private static final NamespacedKey STORED_AMOUNT_KEY = new NamespacedKey("vaultworks", "stored_amount");
@@ -114,6 +118,46 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     public boolean hasLegacyRecovery() {
         return !legacyRecovery.isEmpty();
+    }
+
+    public VaultPowerBase getPowerBase() {
+        Block cursor = getBlock().getRelative(BlockFace.DOWN);
+        for (int depth = 1; depth <= MAX_COLUMN_HEIGHT; depth++) {
+            RebarBlock rebarBlock;
+            try {
+                rebarBlock = BlockStorage.get(cursor);
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
+
+            if (rebarBlock instanceof VaultPowerBase base) {
+                return base;
+            }
+
+            // Power conducts vertically only through another contiguous Vault Cell.
+            if (!(rebarBlock instanceof BasicVaultCell)) {
+                return null;
+            }
+
+            cursor = cursor.getRelative(BlockFace.DOWN);
+        }
+        return null;
+    }
+
+    public boolean isOperational() {
+        VaultPowerBase base = getPowerBase();
+        return base != null && base.isOnline();
+    }
+
+    protected boolean requireOperational(Player player) {
+        if (isOperational()) {
+            return true;
+        }
+
+        player.sendMessage(Component.text(
+                "Vault offline. Place it in a contiguous column of up to 6 Vault Cells above a powered Vault Power Base."
+        ));
+        return false;
     }
 
     protected boolean isRegistered() {
@@ -342,6 +386,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     protected boolean registerFromMainHand(Player player) {
+        if (!requireOperational(player)) {
+            return false;
+        }
         if (storedItem != null) {
             player.sendMessage(Component.text("This Vault Cell is already registered."));
             return false;
@@ -374,6 +421,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     protected void quickDeposit(Player player) {
+        if (!requireOperational(player)) {
+            return;
+        }
         if (storedItem == null) {
             player.sendMessage(Component.text("Register an item first using the center slot."));
             return;
@@ -426,6 +476,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     protected void withdraw(Player player, boolean single) {
+        if (!requireOperational(player)) {
+            return false;
+        }
         if (storedItem == null || storedAmount <= 0L) {
             player.sendMessage(Component.text("This Vault Cell has no stored items."));
             return;
@@ -456,12 +509,18 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     protected void togglePurge(Player player) {
+        if (!requireOperational(player)) {
+            return;
+        }
         purgeOverflow = !purgeOverflow;
         refreshGuiItems();
         player.sendMessage(Component.text("Overflow purge " + (purgeOverflow ? "enabled." : "disabled.")));
     }
 
     protected void clearRegistration(Player player) {
+        if (!requireOperational(player)) {
+            return;
+        }
         if (storedItem == null) {
             return;
         }
@@ -481,6 +540,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     protected void recoverLegacy(Player player) {
+        if (!requireOperational(player)) {
+            return;
+        }
         if (legacyRecovery.isEmpty()) {
             player.sendMessage(Component.text("There are no legacy contents to recover."));
             return;
@@ -524,11 +586,16 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         public @NotNull ItemProvider getItemProvider(@NotNull Player viewer) {
             long capacity = getCapacity();
             String percent = capacity <= 0L ? "0" : String.format(Locale.US, "%.1f", (storedAmount * 100.0D) / capacity);
-            return ItemStackBuilder.of(Material.CLOCK)
-                    .name(Component.text("Vault Status"))
+            boolean online = isOperational();
+            return ItemStackBuilder.of(online ? Material.COPPER_BULB : Material.EXPOSED_COPPER_BULB)
+                    .name(Component.text("Vault Status — " + (online ? "ONLINE" : "OFFLINE")))
                     .lore(
                             Component.text("Stored: " + format(storedAmount) + " / " + format(capacity)),
                             Component.text("Used: " + percent + "%"),
+                            Component.text("Column limit: " + MAX_COLUMN_HEIGHT + " Vault Cells per Power Base"),
+                            Component.text(online
+                                    ? "Powered by the Vault Power Base below."
+                                    : "Storage controls and cargo are locked until powered."),
                             Component.text(storedAmount > capacity ? "Over configured capacity — withdrawals remain safe." : "")
                     );
         }
