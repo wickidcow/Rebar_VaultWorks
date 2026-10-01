@@ -41,11 +41,46 @@ item:
   vault_terminal:
     name: "Vault Terminal"
     lore: |-
-      <arrow> Browse exact item identities across the connected Vault network
+      <arrow> Search, deposit and withdraw across the connected Vault network
       <arrow> Paged view shows total and currently accessible stock
       <arrow> Live anvil search supports names, @namespace, #online and #offline
-      <arrow> Search filters one captured snapshot; no per-keystroke network scan
-      <arrow> Read-only foundation: withdrawals and deposits are not enabled yet
+      <arrow> Left = stack, right = 1, shift-left = fill inventory
+      <arrow> Shift-right deposits matching items; top hopper deposits inventory
+      <arrow> Every mutation revalidates loaded powered physical Vault Cells
+
+  vault_transmitter:
+    name: "Vault Transmitter"
+    lore: |-
+      <arrow> Powered wireless access point for one connected Vault network
+      <arrow> Also works as a normal local Vault Terminal
+      <arrow> Bind a Wireless Vault Terminal by sneak-right-clicking this block
+      <arrow> Uses loaded-only access and never force-loads remote storage
+      <arrow> Add a Vault Antenna for longer same-world range
+
+  vault_antenna:
+    name: "Vault Antenna"
+    lore: |-
+      <arrow> Place directly adjacent to a Vault Transmitter
+      <arrow> Extends Wireless Vault Terminal range in the same world
+      <arrow> Passive upgrade with no ticking or chunk loading
+
+  dimensional_vault_antenna:
+    name: "Dimensional Vault Antenna"
+    lore: |-
+      <arrow> Endgame wireless upgrade for an adjacent Vault Transmitter
+      <arrow> Permits access from another world or dimension
+      <arrow> The source transmitter must still be loaded and powered
+      <arrow> No world is hard-coded, leaving future dimensions compatible
+
+  wireless_vault_terminal:
+    name: "Wireless Vault Terminal"
+    lore: |-
+      <arrow> Portable access to one bound Vault Transmitter
+      <arrow> Sneak-right-click a transmitter to bind this terminal
+      <arrow> Right-click to open the remote Vault inventory
+      <arrow> Normal antenna range applies in the same world
+      <arrow> Cross-dimensional access requires a Dimensional Vault Antenna
+      <arrow> Never force-loads the bound transmitter or storage chunks
 
   vault_power_base:
     name: "Vault Power Base"
