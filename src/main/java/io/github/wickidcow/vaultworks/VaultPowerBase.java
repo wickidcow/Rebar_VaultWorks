@@ -9,10 +9,13 @@ import io.github.pylonmc.rebar.block.interfaces.DirectionalRebarBlock;
 import io.github.pylonmc.rebar.block.interfaces.SimpleElectricRebarBlock;
 import io.github.pylonmc.rebar.electricity.nodes.ElectricConsumerNode;
 import io.github.pylonmc.rebar.electricity.nodes.ElectricNodeType;
+import io.github.pylonmc.rebar.waila.WailaDisplay;
 import java.util.List;
+import net.kyori.adventure.text.Component;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.CopperBulb;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.jetbrains.annotations.NotNull;
@@ -70,6 +73,30 @@ public final class VaultPowerBase extends RebarBlock implements
      */
     public void refreshColumnVisuals() {
         applyVaultVisuals(isOnline());
+    }
+
+    public int getColumnHeight() {
+        int cells = 0;
+        for (int height = 1; height <= BasicVaultCell.MAX_COLUMN_HEIGHT; height++) {
+            try {
+                if (BlockStorage.getAs(BasicVaultCell.class, getBlock().getRelative(BlockFace.UP, height)) == null) {
+                    break;
+                }
+            } catch (IllegalArgumentException ignored) {
+                break;
+            }
+            cells++;
+        }
+        return cells;
+    }
+
+    @Override
+    public WailaDisplay getWaila(@NotNull Player player) {
+        boolean online = isOnline();
+        return WailaDisplay.of(this, player)
+                .add(Component.text(online ? "ONLINE" : "OFFLINE"))
+                .add(Component.text(getColumnHeight() + " / " + BasicVaultCell.MAX_COLUMN_HEIGHT + " Vaults"))
+                .add(Component.text(VaultWorks.instance().policy().watts() + " W"));
     }
 
     private void applyPowerState(boolean online) {
