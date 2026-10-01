@@ -25,6 +25,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
     private static VaultWorks instance;
 
     private PowerPolicy policy;
+    private StoragePolicy storagePolicy;
     private WirelessPolicy wirelessPolicy;
     private final VaultWirelessRegistry wirelessRegistry = new VaultWirelessRegistry();
     private final VaultEndpointRegistry endpointRegistry = new VaultEndpointRegistry();
@@ -54,6 +55,12 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
                 getConfig().getDouble("power.base-watts", legacyWatts),
                 getConfig().getDouble("power.watts-per-vault", 0.0D),
                 getConfig().getInt("cargo.items-per-tick", 8)
+        );
+        storagePolicy = new StoragePolicy(
+                getConfig().getLong("storage.basic-capacity", 1_000_000L),
+                getConfig().getLong("storage.powered-capacity", 4_000_000L),
+                getConfig().getInt("index.max-network-nodes", 4096),
+                getConfig().getInt("terminal.max-item-types", 4096)
         );
         wirelessPolicy = new WirelessPolicy(
                 getConfig().getDouble("wireless.transmitter-watts", 32.0D),
@@ -300,6 +307,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         recipes.clear();
         wirelessRegistry.clear();
         endpointRegistry.clear();
+        storagePolicy = null;
         wirelessPolicy = null;
         instance = null;
     }
@@ -310,6 +318,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
     public PowerPolicy policy() {
         return policy;
+    }
+
+    public StoragePolicy storagePolicy() {
+        return java.util.Objects.requireNonNull(storagePolicy, "Storage policy is not loaded");
     }
 
     public WirelessPolicy wirelessPolicy() {
