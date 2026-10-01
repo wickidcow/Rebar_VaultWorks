@@ -23,7 +23,8 @@ final class VaultNetworkScanner {
     }
 
     static VaultNetworkSnapshot scan(VaultIndex index) {
-        int maxNodes = Math.max(32, VaultWorks.instance().getConfig().getInt("index.max-network-nodes", 4096));
+        int configuredMax = VaultWorks.instance().getConfig().getInt("index.max-network-nodes", 4096);
+        int maxNodes = Math.max(32, Math.min(configuredMax, 65_536));
 
         Queue<Block> queue = new ArrayDeque<>();
         Set<NodePos> visited = new HashSet<>();
