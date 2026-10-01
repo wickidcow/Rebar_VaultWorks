@@ -34,12 +34,16 @@ public final class WirelessVaultTerminalItem extends RebarItem
     }
 
     @Override
-    @MultiHandler(priorities = {EventPriority.NORMAL, EventPriority.MONITOR})
+    @MultiHandler(
+            priorities = {EventPriority.NORMAL, EventPriority.MONITOR},
+            ignoreCancelled = true
+    )
     public void onInteract(
             @NotNull PlayerInteractEvent event,
             @NotNull EventPriority priority
     ) {
-        if (!event.getAction().isRightClick()) {
+        if (!event.getAction().isRightClick()
+                || event.useItemInHand() == Event.Result.DENY) {
             return;
         }
 
