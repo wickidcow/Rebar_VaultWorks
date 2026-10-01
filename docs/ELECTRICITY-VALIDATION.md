@@ -1,4 +1,6 @@
-# Electricity validation — 2026-09-30
+# Electricity validation — 0.1 prototype (2026-09-30)
+
+> Historical validation: these checks cover the earlier direct-powered 54-slot Vault prototype. The 0.2 storage layout replaces that design with a shared Vault Power Base, portable single-item Vault Cells and rear Cargo Nodes. Keep these results as evidence for the upstream Rebar electricity integration, but re-run gameplay validation on the 0.2 layout before a stable release.
 
 Tested with Java 25, Paper 26.2 build 129, and the unmodified upstream Rebar server artifact `rebar-2064.jar`, from successful workflow run 36620712190 at commit `5e34938f044dc63c103213e80b07484bf4994639`.
 
