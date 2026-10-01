@@ -183,8 +183,11 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             return 0L;
         }
 
-        long free = networkFreeCapacity(identity);
-        long accepted = Math.min(requested, free);
+        long accepted = VaultStorageMath.insertable(
+                storedAmount,
+                getCapacity(),
+                requested
+        );
         if (accepted <= 0L) {
             return 0L;
         }
@@ -199,8 +202,10 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             return 0L;
         }
 
-        long available = networkAvailable(identity);
-        long removed = Math.min(requested, available);
+        long removed = VaultStorageMath.withdrawable(
+                networkAvailable(identity),
+                requested
+        );
         if (removed <= 0L) {
             return 0L;
         }
