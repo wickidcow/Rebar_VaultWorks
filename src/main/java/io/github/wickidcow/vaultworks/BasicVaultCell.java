@@ -79,6 +79,13 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     public void postInitialise() {
         super.postInitialise();
         VaultDisplayManager.update(this);
+
+        VaultPowerBase base = getPowerBase();
+        if (base == null) {
+            updatePowerVisual(false);
+        } else {
+            base.refreshColumnVisuals();
+        }
     }
 
     protected void setVaultShell(boolean ominous, org.bukkit.block.BlockFace facing) {
@@ -148,6 +155,14 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     public boolean isOperational() {
         VaultPowerBase base = getPowerBase();
         return base != null && base.isOnline();
+    }
+
+    void updatePowerVisual(boolean online) {
+        if (getBlock().getBlockData() instanceof Vault vault) {
+            vault.setVaultState(online ? Vault.State.ACTIVE : Vault.State.INACTIVE);
+            getBlock().setBlockData(vault, false);
+        }
+        refreshGuiItems();
     }
 
     protected boolean requireOperational(Player player) {
@@ -343,6 +358,21 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     @Override
     public void onBlockBreak(@NotNull List<ItemStack> drops, @NotNull BlockBreakContext context) {
         VaultDisplayManager.remove(this);
+
+        // Breaking any cell in the column immediately de-energizes every cell above
+        // the gap. Their contents remain portable and untouched.
+        for (int height = 1; height <= MAX_COLUMN_HEIGHT; height++) {
+            BasicVaultCell upper;
+            try {
+                upper = BlockStorage.getAs(BasicVaultCell.class, getBlock().getRelative(BlockFace.UP, height));
+            } catch (IllegalArgumentException ignored) {
+                break;
+            }
+            if (upper == null) {
+                break;
+            }
+            upper.updatePowerVisual(false);
+        }
     }
 
     @Override
