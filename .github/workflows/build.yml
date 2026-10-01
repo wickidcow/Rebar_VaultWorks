@@ -53,6 +53,7 @@ jobs:
             "config.yml"
             "lang/en.yml"
             "io/github/wickidcow/vaultworks/VaultWorks.class"
+            "io/github/wickidcow/vaultworks/VaultWorksContentCatalog.class"
             "io/github/wickidcow/vaultworks/BasicVaultCell.class"
             "io/github/wickidcow/vaultworks/VaultTerminal.class"
             "io/github/wickidcow/vaultworks/VaultTransmitter.class"
@@ -119,7 +120,9 @@ jobs:
 
           READY=0
           for _ in $(seq 1 120); do
-            if grep -Fq "VaultWorks ready:" "$LOG_FILE" && grep -Fq "Done (" "$LOG_FILE"; then
+            if grep -Fq "Validated 14 VaultWorks content entries and survival recipes." "$LOG_FILE" \
+              && grep -Fq "VaultWorks ready:" "$LOG_FILE" \
+              && grep -Fq "Done (" "$LOG_FILE"; then
               READY=1
               break
             fi
@@ -206,6 +209,7 @@ jobs:
           fi
 
           echo "VaultWorks Paper smoke test passed."
+          grep -F "Validated 14 VaultWorks content entries and survival recipes." "$LOG_FILE"
           grep -F "VaultWorks ready:" "$LOG_FILE"
           grep -F "Done (" "$LOG_FILE"
           grep -F "VaultWorks Doctor result: PASS" "$LOG_FILE"
