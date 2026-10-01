@@ -266,6 +266,10 @@ public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
             lore.add(Component.text("Vault Cells: " + snapshot.vaults()));
             lore.add(Component.text("Columns online: " + snapshot.onlineColumns() + " / " + snapshot.columns()));
             lore.add(Component.text("Accessible items: " + BasicVaultCell.format(snapshot.accessibleStored())));
+            if (snapshot.identityConflictVaults() > 0) {
+                lore.add(Component.text("LOCKED identity conflicts: "
+                        + snapshot.identityConflictVaults() + " Vault(s)"));
+            }
             if (snapshot.truncated()) {
                 lore.add(Component.text("Warning: network traversal hit the safety limit."));
             }
