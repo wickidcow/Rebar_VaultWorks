@@ -23,3 +23,8 @@ storage:
 # Traversal follows only loaded Vault Link, Vault Index and Vault Power Base blocks.
 index:
   max-network-nodes: 4096
+
+# Paged Terminal rendering safety bound. The network snapshot may contain more
+# types, but a single GUI refresh will materialize at most this many item buttons.
+terminal:
+  max-item-types: 4096
