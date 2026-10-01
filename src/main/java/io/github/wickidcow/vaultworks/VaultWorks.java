@@ -83,8 +83,8 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
         RebarItem.register(RebarItem.class, powerBaseItem, powerBaseKey);
         RebarItem.register(RebarItem.class, cargoNodeItem, cargoNodeKey);
-        RebarItem.register(RebarItem.class, basicItem, basicKey);
-        RebarItem.register(RebarItem.class, poweredItem, poweredKey);
+        RebarItem.register(VaultCellItem.class, basicItem, basicKey);
+        RebarItem.register(VaultCellItem.class, poweredItem, poweredKey);
 
         recipe(new ShapedRecipe(circuitKey, circuitItem).shape("CRC", "RQR", "CRC")
                 .setIngredient('C', Material.COPPER_INGOT)
