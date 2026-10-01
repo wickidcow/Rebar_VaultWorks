@@ -382,7 +382,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     @Override
     public @NotNull Component getGuiTitle() {
-        return Component.text("Basic Vault Cell");
+        return Component.text("Basic Vault Cell — " + (isOperational() ? "Online" : "Offline"));
     }
 
     protected boolean registerFromMainHand(Player player) {
@@ -477,7 +477,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     protected void withdraw(Player player, boolean single) {
         if (!requireOperational(player)) {
-            return false;
+            return;
         }
         if (storedItem == null || storedAmount <= 0L) {
             player.sendMessage(Component.text("This Vault Cell has no stored items."));
