@@ -36,7 +36,7 @@ import xyz.xenondevs.invui.window.AnvilWindow;
  * resolved again against currently loaded, powered physical Vault Cells. Cached
  * index/search state is never treated as authoritative inventory.
  */
-public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
+public class VaultTerminal extends RebarBlock implements GuiRebarBlock {
 
     public VaultTerminal(@NotNull Block block, @NotNull BlockCreateContext context) {
         super(block, context);
