@@ -473,3 +473,69 @@ VaultWorks should not implement an electricity system.
 If crafting/storage devices eventually consume Rebar electricity, that should use the released Rebar electricity API after it is available in the project's chosen dependency line.
 
 Energy consumption is a cost/requirement of VaultWorks devices, not ownership of electrical simulation.
+
+## Implemented 0.3 storage transaction boundary
+
+Player-facing Vault Terminal mutations never edit a cached index summary.
+
+Each operation:
+
+1. traverses the explicit loaded Vault topology once;
+2. rejects mutation if the configured topology bound truncates that traversal;
+3. considers only loaded, powered physical Vault Cells;
+4. matches full Bukkit/Rebar item identity using `ItemStack#isSimilar`;
+5. revalidates capacity/amount immediately before each cell mutation;
+6. commits on the primary server thread;
+7. compensates an unexpected inventory/storage shortfall before returning.
+
+Terminal deposits deliberately ignore a cell's overflow-purge setting. A player remote-deposit must never destroy items just because the target cell has cargo overflow purge enabled.
+
+Empty cells are also not auto-registered by network deposit. Registration remains an explicit storage-layout decision.
+
+## Endpoint identity and revisions
+
+Every Vault Cell now carries:
+
+- a persistent endpoint UUID;
+- a monotonic storage revision.
+
+Both values travel with the portable dropped Vault item.
+
+Loaded endpoints are registered in-memory. If the same endpoint UUID appears on two loaded physical cells, the later cell is assigned a replacement UUID and the collision is logged. This prevents two loaded storage owners from silently aliasing one endpoint identity.
+
+The revision increments for terminal, manual, cargo and recovery mutations. It is intended to support future change-driven cached indexing without making a cache authoritative.
+
+## Wireless access model
+
+Wireless access is an alternate route to the same Vault Terminal implementation, not a second inventory system.
+
+A Vault Transmitter:
+
+- is physically attached to the normal explicit Vault Link topology;
+- consumes Rebar electricity;
+- registers only while its block is loaded;
+- exposes the same terminal search/transaction GUI as a wired Vault Terminal.
+
+A Wireless Vault Terminal item stores only the UUID of its bound transmitter.
+
+Resolution is loaded-only:
+
+```text
+Wireless Terminal
+      |
+      | transmitter UUID
+      v
+Loaded Transmitter Registry
+      |
+      v
+Normal Vault topology scan
+      |
+      v
+Physical Vault Cells
+```
+
+Same-world access is range-limited. An adjacent Vault Antenna increases that range.
+
+Cross-world/dimensional access requires an adjacent Dimensional Vault Antenna and the configured cross-dimension permission. No world name is persisted or special-cased, so newly added worlds can participate without schema migration.
+
+If the transmitter or source network is unloaded, remote access fails closed. VaultWorks never force-loads it.
