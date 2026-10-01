@@ -4,6 +4,7 @@ import java.util.List;
 
 record VaultNetworkView(
         VaultNetworkSnapshot snapshot,
-        List<VaultItemSummary> items
+        List<VaultItemSummary> items,
+        boolean itemsTruncated
 ) {
 }
