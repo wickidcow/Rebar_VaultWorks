@@ -34,7 +34,7 @@ Requires Paper 26.2, Java 25, and the electricity-enabled Rebar development serv
 1. Place a **Vault Power Base** first. Its front should face the player/storage aisle; its electrical port is on the **rear service side** so wiring can stay hidden.
 2. Stack **1–6 Vault Cells directly above the base**. A seventh placement is rejected.
 3. Connect Rebar electricity to the rear of the base. The current default base load is **48 W**.
-4. When power is available, the base lights and the connected Vault shells switch to their active state. Without power, Vault storage controls and cargo operations are locked, but stored data remains safe.
+4. When power is available, the base lights and each registered item display inside the connected Vaults brightens/glows. The vanilla Vault block itself stays in its inert state so VaultWorks does not trigger Mojang's trial-key/reward behavior. Without power, Vault storage controls and cargo operations are locked, but stored data remains safe.
 5. Open a Vault and hold the item you want to store. Registering consumes exactly **1 item** and permanently keys that Vault to that exact item identity until the count reaches zero and the registration is cleared.
 6. Place a **Vault Cargo Node directly behind a Vault Cell**. Connect Rebar cargo to the node's outward-facing side. The front of the Vault wall remains clean.
 7. Overflow purge is **OFF by default**. When enabled for a Vault, matching input beyond capacity is intentionally destroyed; when disabled, excess stays at the source.
