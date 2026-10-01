@@ -28,7 +28,7 @@ item:
       <arrow> Place directly below a vertical Vault Cell column
       <arrow> Powers up to 6 contiguous Vault Cells above it
       <arrow> Rear-facing Rebar power port keeps wiring behind the Vault wall
-      <arrow> The base lights when energized; Vault shells switch active/inactive
+      <arrow> The base lights when energized; stored-item displays brighten when online
       <arrow> Storage controls and cargo lock when the base is not powered
 
   vault_cargo_node:
