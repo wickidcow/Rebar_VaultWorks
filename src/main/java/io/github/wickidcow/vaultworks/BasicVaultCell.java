@@ -125,6 +125,80 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         return storedAmount;
     }
 
+    synchronized long networkAvailable(ItemStack identity) {
+        if (!isOperational()
+                || identity == null
+                || identity.isEmpty()
+                || storedItem == null
+                || storedAmount <= 0L
+                || !storedItem.isSimilar(identity)
+                || hasLegacyRecovery()) {
+            return 0L;
+        }
+        return storedAmount;
+    }
+
+    synchronized long networkFreeCapacity(ItemStack identity) {
+        if (!isOperational()
+                || identity == null
+                || identity.isEmpty()
+                || storedItem == null
+                || !storedItem.isSimilar(identity)
+                || isVaultCell(identity)
+                || hasLegacyRecovery()) {
+            return 0L;
+        }
+        return Math.max(0L, getCapacity() - storedAmount);
+    }
+
+    synchronized long networkInsert(ItemStack identity, long requested) {
+        if (requested <= 0L) {
+            return 0L;
+        }
+
+        long free = networkFreeCapacity(identity);
+        long accepted = Math.min(requested, free);
+        if (accepted <= 0L) {
+            return 0L;
+        }
+
+        storedAmount += accepted;
+        refreshGuiItems();
+        return accepted;
+    }
+
+    synchronized long networkExtract(ItemStack identity, long requested) {
+        if (requested <= 0L) {
+            return 0L;
+        }
+
+        long available = networkAvailable(identity);
+        long removed = Math.min(requested, available);
+        if (removed <= 0L) {
+            return 0L;
+        }
+
+        storedAmount -= removed;
+        refreshGuiItems();
+        return removed;
+    }
+
+    synchronized void networkRollbackExtract(ItemStack identity, long amount) {
+        if (amount <= 0L
+                || identity == null
+                || identity.isEmpty()
+                || storedItem == null
+                || !storedItem.isSimilar(identity)) {
+            throw new IllegalStateException("Cannot restore a Vault transaction to a different cell identity");
+        }
+
+        if (storedAmount > Long.MAX_VALUE - amount) {
+            throw new IllegalStateException("Vault transaction rollback would overflow stored amount");
+        }
+        storedAmount += amount;
+        refreshGuiItems();
+    }
+
     public boolean isPurgeOverflow() {
         return purgeOverflow;
     }
