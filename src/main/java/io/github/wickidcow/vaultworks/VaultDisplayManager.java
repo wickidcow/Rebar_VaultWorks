@@ -2,6 +2,10 @@ package io.github.wickidcow.vaultworks;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Display;
@@ -21,6 +25,7 @@ public final class VaultDisplayManager {
 
     private static final NamespacedKey OWNER_KEY = new NamespacedKey("vaultworks", "vault_display_owner");
     private static final float SCALE = 0.46F;
+    private static final Map<String, UUID> TRACKED = new ConcurrentHashMap<>();
 
     private VaultDisplayManager() {
     }
@@ -32,21 +37,25 @@ public final class VaultDisplayManager {
     public static void update(BasicVaultCell cell, boolean online) {
         ItemStack registered = cell.getStoredItem();
         String owner = owner(cell);
-        List<ItemDisplay> displays = findDisplays(cell, owner);
+        ItemDisplay display = getTracked(owner);
 
         if (registered == null || registered.isEmpty()) {
-            displays.forEach(Entity::remove);
+            remove(cell);
             return;
         }
 
-        ItemDisplay display;
-        if (displays.isEmpty()) {
-            Location center = cell.getBlock().getLocation().add(0.5D, 0.53D, 0.5D);
-            display = cell.getBlock().getWorld().spawn(center, ItemDisplay.class);
-        } else {
-            display = displays.removeFirst();
-            displays.forEach(Entity::remove);
+        if (display == null) {
+            List<ItemDisplay> displays = findDisplays(cell, owner);
+            if (displays.isEmpty()) {
+                Location center = cell.getBlock().getLocation().add(0.5D, 0.53D, 0.5D);
+                display = cell.getBlock().getWorld().spawn(center, ItemDisplay.class);
+            } else {
+                display = displays.removeFirst();
+                displays.forEach(Entity::remove);
+            }
         }
+
+        TRACKED.put(owner, display.getUniqueId());
 
         ItemStack shown = registered.asOne();
         display.setItemStack(shown);
@@ -73,7 +82,36 @@ public final class VaultDisplayManager {
     }
 
     public static void remove(BasicVaultCell cell) {
-        findDisplays(cell, owner(cell)).forEach(Entity::remove);
+        String owner = owner(cell);
+        UUID tracked = TRACKED.remove(owner);
+        if (tracked != null) {
+            Entity entity = Bukkit.getServer().getEntity(tracked);
+            if (entity instanceof ItemDisplay) {
+                entity.remove();
+            }
+        }
+
+        // Recovery cleanup for a stale cache or duplicate entity after an interrupted reload.
+        findDisplays(cell, owner).forEach(Entity::remove);
+    }
+
+    public static void forget(BasicVaultCell cell) {
+        TRACKED.remove(owner(cell));
+    }
+
+    private static ItemDisplay getTracked(String owner) {
+        UUID uuid = TRACKED.get(owner);
+        if (uuid == null) {
+            return null;
+        }
+
+        Entity entity = Bukkit.getServer().getEntity(uuid);
+        if (entity instanceof ItemDisplay display && display.isValid()) {
+            return display;
+        }
+
+        TRACKED.remove(owner, uuid);
+        return null;
     }
 
     private static List<ItemDisplay> findDisplays(BasicVaultCell cell, String owner) {
