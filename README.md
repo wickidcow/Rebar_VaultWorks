@@ -23,6 +23,7 @@ Available now:
 - **Vault Cargo Node** — sits directly behind one Vault Cell and exposes one outward Rebar cargo connection.
 - **Vault Link Cable** — passive explicit topology for metadata/index connections.
 - **Vault Index** — read-only network overview across explicitly connected loaded Power Bases.
+- **Vault Terminal** — paged exact-item browser showing total and currently accessible stock.
 - Floating registered-item display inside each Vault.
 - Quick deposit, quick withdraw, clear-registration control and per-Vault overflow-purge toggle.
 - Filled Vault Cells keep their stored item, count and overflow setting inside the dropped Vault item when broken, so the cell can be moved and placed elsewhere without dumping its contents.
@@ -53,6 +54,12 @@ The Power Base uses a lit copper-bulb shell as the safe vanilla fallback for the
 5. The Index follows only loaded Vault Index, Vault Link and Vault Power Base blocks. It never scans the world and never force-loads chunks.
 
 This phase is intentionally **read-only**. The Index owns metadata only; it does not own, withdraw or insert items. Searchable terminal mutation comes after topology and identity rules are proven.
+
+### Browse the Vault Terminal
+
+Craft and connect a **Vault Terminal** anywhere on the same Vault Link topology. The terminal groups items by their full serialized one-item identity, so custom Rebar/Pylon item data stays distinct. It shows 36 item types per page with total stored amount, currently accessible amount and the number of Vault Cells holding that exact item.
+
+The terminal rebuilds its pages only when it is loaded or when **Refresh Terminal** is clicked. There is no per-terminal polling task. Item buttons are intentionally non-interactive in this phase; transactional withdraw/deposit comes after the read path is proven stable.
 
 Rebar cargo is the external machine-I/O layer, not VaultWorks' future internal network protocol. The planned Vault Index and Vault Terminal will perform validated operations directly against attached Vault Cells, while future import/export interfaces will bridge indexed storage to Rebar cargo.
 
