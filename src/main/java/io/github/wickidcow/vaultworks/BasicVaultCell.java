@@ -19,6 +19,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -50,6 +51,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     private static final NamespacedKey STORED_ITEM_KEY = new NamespacedKey("vaultworks", "stored_item");
     private static final NamespacedKey STORED_AMOUNT_KEY = new NamespacedKey("vaultworks", "stored_amount");
+    private static final NamespacedKey ENDPOINT_ID_KEY = new NamespacedKey("vaultworks", "endpoint_id");
+    private static final NamespacedKey STORAGE_REVISION_KEY = new NamespacedKey("vaultworks", "storage_revision");
     private static final NamespacedKey PURGE_OVERFLOW_KEY = new NamespacedKey("vaultworks", "purge_overflow");
     private static final NamespacedKey LEGACY_RECOVERY_KEY = new NamespacedKey("vaultworks", "legacy_recovery");
     private static final NamespacedKey LEGACY_INVENTORY_KEY = new NamespacedKey("rebar", "virtual_inventory_items");
@@ -62,6 +65,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     protected ItemStack storedItem;
     protected long storedAmount;
     protected boolean purgeOverflow;
+    protected UUID endpointId = UUID.randomUUID();
+    protected long storageRevision;
     protected final List<ItemStack> legacyRecovery = new ArrayList<>();
 
     private final List<VaultButton> guiButtons = new ArrayList<>();
@@ -83,6 +88,21 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     @Override
     public void postInitialise() {
         super.postInitialise();
+
+        VaultEndpointRegistry registry = VaultWorks.instance().endpointRegistry();
+        if (!registry.register(this)) {
+            UUID duplicate = endpointId;
+            do {
+                endpointId = UUID.randomUUID();
+            } while (!registry.register(this));
+
+            VaultWorks.instance().getLogger().warning(
+                    "Duplicate Vault Cell endpoint id " + duplicate
+                            + " detected at " + locationText()
+                            + "; assigned replacement id " + endpointId
+            );
+        }
+
         VaultDisplayManager.update(this);
 
         VaultPowerBase base = getPowerBase();
@@ -123,6 +143,14 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     public long getStoredAmount() {
         return storedAmount;
+    }
+
+    public UUID getEndpointId() {
+        return endpointId;
+    }
+
+    public long getStorageRevision() {
+        return storageRevision;
     }
 
     synchronized long networkAvailable(ItemStack identity) {
@@ -314,6 +342,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         ItemStack item = pdc.get(STORED_ITEM_KEY, RebarSerializers.ITEM_STACK);
         Long amount = pdc.get(STORED_AMOUNT_KEY, RebarSerializers.LONG);
         Boolean purge = pdc.get(PURGE_OVERFLOW_KEY, RebarSerializers.BOOLEAN);
+        String storedEndpointId = pdc.get(ENDPOINT_ID_KEY, PersistentDataType.STRING);
+        Long storedRevision = pdc.get(STORAGE_REVISION_KEY, RebarSerializers.LONG);
         List<ItemStack> recovery = pdc.get(LEGACY_RECOVERY_KEY, ITEM_LIST_TYPE);
 
         if (item != null && !item.isEmpty()) {
@@ -323,6 +353,14 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         if (purge != null) {
             purgeOverflow = purge;
         }
+        if (storedEndpointId != null) {
+            try {
+                endpointId = UUID.fromString(storedEndpointId);
+            } catch (IllegalArgumentException ignored) {
+                endpointId = UUID.randomUUID();
+            }
+        }
+        storageRevision = Math.max(0L, storedRevision == null ? 0L : storedRevision);
         if (recovery != null) {
             for (ItemStack stack : recovery) {
                 if (stack != null && !stack.isEmpty()) {
@@ -399,6 +437,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             pdc.set(STORED_ITEM_KEY, RebarSerializers.ITEM_STACK, storedItem.asOne());
         }
         pdc.set(STORED_AMOUNT_KEY, RebarSerializers.LONG, Math.max(0L, storedAmount));
+        pdc.set(ENDPOINT_ID_KEY, PersistentDataType.STRING, endpointId.toString());
+        pdc.set(STORAGE_REVISION_KEY, RebarSerializers.LONG, Math.max(0L, storageRevision));
         pdc.set(PURGE_OVERFLOW_KEY, RebarSerializers.BOOLEAN, purgeOverflow);
 
         if (legacyRecovery.isEmpty()) {
@@ -439,6 +479,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     @Override
     public void onUnload(@NotNull RebarBlockUnloadEvent event, @NotNull EventPriority priority) {
+        VaultWorks.instance().endpointRegistry().unregister(this);
         // The ItemDisplay itself is persistent and unloads with the chunk. Forget only
         // the live UUID cache so the next load can recover it without retaining cells forever.
         VaultDisplayManager.forget(this);
@@ -446,6 +487,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     @Override
     public void onBlockBreak(@NotNull List<ItemStack> drops, @NotNull BlockBreakContext context) {
+        VaultWorks.instance().endpointRegistry().unregister(this);
         VaultDisplayManager.remove(this);
 
         VaultPowerBase base = getPowerBase();
