@@ -42,8 +42,12 @@ final class VaultWorksCommand implements CommandExecutor {
         if (plugin.wirelessPolicy() == null) {
             failures.add("wireless policy unavailable");
         }
-        if (plugin.registeredRecipeCount() <= 0) {
-            failures.add("no VaultWorks recipes registered");
+        if (plugin.registeredRecipeCount() != VaultWorksContentCatalog.ALL_IDS.size()) {
+            failures.add(
+                    "recipe/catalog mismatch "
+                            + plugin.registeredRecipeCount()
+                            + "/" + VaultWorksContentCatalog.ALL_IDS.size()
+            );
         }
 
         sender.sendMessage(Component.text(
