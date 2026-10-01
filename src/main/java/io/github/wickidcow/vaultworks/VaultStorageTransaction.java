@@ -114,16 +114,23 @@ final class VaultStorageTransaction {
             ItemStack identity
     ) {
         requirePrimaryThread();
-        if (identity == null || identity.isEmpty()) {
-            return Result.of(0L, Status.NO_MATCHING_ITEMS);
-        }
-
         VaultNetworkCells network = VaultNetworkScanner.scanAccessibleCells(root);
         if (network.truncated()) {
             return Result.of(0L, Status.NETWORK_TRUNCATED);
         }
+        return depositMatching(network.cells(), inventory, identity);
+    }
 
-        List<BasicVaultCell> matches = matchingCells(network.cells(), identity);
+    private static Result depositMatching(
+            List<BasicVaultCell> networkCells,
+            PlayerInventory inventory,
+            ItemStack identity
+    ) {
+        if (identity == null || identity.isEmpty()) {
+            return Result.of(0L, Status.NO_MATCHING_ITEMS);
+        }
+
+        List<BasicVaultCell> matches = matchingCells(networkCells, identity);
         if (matches.isEmpty()) {
             return Result.of(0L, Status.NO_ACCESSIBLE_STORAGE);
         }
@@ -176,6 +183,11 @@ final class VaultStorageTransaction {
     ) {
         requirePrimaryThread();
 
+        VaultNetworkCells network = VaultNetworkScanner.scanAccessibleCells(root);
+        if (network.truncated()) {
+            return Result.of(0L, Status.NETWORK_TRUNCATED);
+        }
+
         List<ItemStack> identities = new ArrayList<>();
         for (ItemStack stack : inventory.getStorageContents()) {
             if (stack == null || stack.isEmpty()) {
@@ -195,7 +207,7 @@ final class VaultStorageTransaction {
         long moved = 0L;
         Status lastStatus = Status.NO_ACCESSIBLE_STORAGE;
         for (ItemStack identity : identities) {
-            Result result = depositMatching(root, inventory, identity);
+            Result result = depositMatching(network.cells(), inventory, identity);
             if (result.status() == Status.NETWORK_TRUNCATED) {
                 return Result.of(moved, Status.NETWORK_TRUNCATED);
             }
