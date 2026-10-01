@@ -40,6 +40,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
             );
         }
 
+        VaultEndpointRegistry.clear();
         instance = this;
         saveDefaultConfig();
         migrateConfig();
@@ -214,6 +215,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
             Bukkit.removeRecipe(key);
         }
         recipes.clear();
+        VaultEndpointRegistry.clear();
         instance = null;
     }
 
