@@ -21,15 +21,16 @@ item:
   basic_vault_cell:
     name: "Basic Vault Cell"
     lore: |-
-      <arrow> 54 slots of physical storage
-      <arrow> Barrel-based visual; no generic iron block shell
-      <arrow> Right-click to open; no electricity required
-      <arrow> Breaking the cell drops its contents
+      <arrow> Single-item high-capacity physical storage
+      <arrow> Hold an item and register exactly 1 from the GUI
+      <arrow> The registered item floats inside the Vault block
+      <arrow> Quick deposit/withdraw and optional overflow purge
+      <arrow> Breaking the Vault keeps its stored state inside the dropped cell
   powered_vault_cell:
     name: "Powered Vault Cell"
     lore: |-
-      <arrow> 54 slots with native Rebar electric cargo access
-      <arrow> Ender Chest visual for the powered storage tier
+      <arrow> Single-item bulk storage with native Rebar cargo
+      <arrow> Uses the ominous Vault visual for the powered tier
       <arrow> Power port on top; cargo input WEST, output EAST
-      <arrow> Automation pauses without power; manual access stays available
-      <arrow> Breaking the cell drops its contents
+      <arrow> Cargo pauses without power; manual access stays available
+      <arrow> Breaking the Vault keeps its stored state inside the dropped cell
