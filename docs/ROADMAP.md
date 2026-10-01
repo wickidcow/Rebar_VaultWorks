@@ -74,9 +74,15 @@ Implemented foundation:
 - manual refresh with no background polling;
 - read-only network summary in the Terminal.
 
+Implemented search:
+
+- live anvil-backed name search;
+- `@namespace` addon/namespace filter;
+- `#online` / `#offline` availability filters;
+- one captured topology snapshot per search session, with no per-keystroke rescans.
+
 Still to implement:
 
-- text search and namespace/addon filters;
 - transactional deposit;
 - transactional withdrawal;
 - validation/reservation against physical endpoint state at commit time;
