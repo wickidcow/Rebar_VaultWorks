@@ -17,7 +17,8 @@ public final class PoweredVaultCell extends BasicVaultCell {
 
     public PoweredVaultCell(@NotNull Block block, @NotNull BlockCreateContext context) {
         super(block, context);
-        setVaultShell(true, context.getFacing());
+        // Preserve the column-facing direction selected by the Vault Power Base.
+        setVaultShell(true, null);
     }
 
     public PoweredVaultCell(@NotNull Block block, @NotNull PersistentDataContainer pdc) {
