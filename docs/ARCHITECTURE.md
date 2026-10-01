@@ -137,6 +137,14 @@ For example, a bulk cell could hold enormous quantities of a few types, while a 
 
 Exact numbers should be balanced later.
 
+## Implemented endpoint identity safety
+
+Vault Cells now persist an endpoint UUID and revision in both world state and their portable dropped item. The revision advances when authoritative storage/control state changes.
+
+Loaded endpoint UUIDs are registered in-memory. A duplicate UUID is treated as a hard safety fault rather than being auto-renamed: all loaded copies are marked conflicted and storage mutation is disabled. The conflict bit is persisted so simply unloading one copy cannot restore mutation access. This deliberately favors preserved/recoverable data over trying to guess which copy is legitimate.
+
+A later Doctor/recovery workflow may offer explicit administrator remediation. Filled conflicted Vaults must never be silently re-keyed because doing so would legitimize duplicated contents.
+
 ## Index updates
 
 The index should be change-driven.
