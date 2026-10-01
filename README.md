@@ -4,7 +4,7 @@
 
 VaultWorks is an early design-stage Rebar addon intended to solve a problem large technical Minecraft bases eventually hit: **storage stops being about chest capacity and becomes an information problem**.
 
-The goal is not to clone Slimefun Networks, Applied Energistics, Refined Storage, or Infinity Expansion. VaultWorks should borrow the lessons that made those systems useful while giving Rebar its own storage model:
+The goal is not to clone Slimefun Networks, Applied Energistics, Refined Storage, or Infinity Expansion. VaultWorks borrows the lessons that made those systems useful while giving Rebar its own storage model:
 
 > **Items remain owned by physical storage cells. An index knows where they are. Terminals request them. Fabricators reserve and craft them.**
 
@@ -12,25 +12,39 @@ There is no magic global inventory object and no world-wide storage scan.
 
 ## Project status
 
-**0.1.0-SNAPSHOT: powered storage foundation implemented.**
+**0.2.0-SNAPSHOT: portable bulk Vault storage and powered-column foundation implemented.**
 
-Available now: a 54-slot Basic Vault Cell and a 54-slot Powered Vault Cell with native Rebar electricity and cargo. The network index, remote terminal and request crafting below remain planned; this first build does not claim those systems are finished.
+Available now:
+
+- Encoded Circuit, Memory Wafer and Storage Lattice progression components.
+- **Basic Vault Cell** — one registered item type, configurable default capacity of **1,000,000 items**.
+- **Powered Vault Cell** — advanced ominous-Vault visual, configurable default capacity of **4,000,000 items**.
+- **Vault Power Base** — powers one contiguous vertical column of up to **6 Vault Cells**.
+- **Vault Cargo Node** — sits directly behind one Vault Cell and exposes one outward Rebar cargo connection.
+- Floating registered-item display inside each Vault.
+- Quick deposit, quick withdraw, clear-registration control and per-Vault overflow-purge toggle.
+- Filled Vault Cells keep their stored item, count and overflow setting inside the dropped Vault item when broken, so the cell can be moved and placed elsewhere without dumping its contents.
 
 Requires Paper 26.2, Java 25, and the electricity-enabled Rebar development server JAR from upstream commit `5e34938f044dc63c103213e80b07484bf4994639`. The build pins API snapshot `1.0.0-20260929.193904-140`. Rebar's stable 0.43.0-26.2 server JAR cannot load this build; the Maven API artifact is not the server plugin.
 
-[Download the raw 0.1.0-SNAPSHOT JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.1.0-SNAPSHOT.jar). Place it directly in `plugins/` and restart.
+[Download the raw 0.2.0-SNAPSHOT JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.2.0-SNAPSHOT.jar). Place it directly in `plugins/` and restart.
 
-### Use powered storage
+### Build a Vault column
 
-1. Open `/rebar guide` → VaultWorks and craft a Powered Vault Cell.
-2. Right-click to insert items directly. The cell owns and saves its 54 slots through Rebar; breaking it drops the contents.
-3. Connect a compatible Rebar wire from your electricity content addon to the **top power port**. The default load is **32 W**.
-4. Connect cargo input on the **WEST** face and cargo output on the **EAST** face. Compass directions are fixed and do not depend on the placement direction.
-5. With adequate power, Rebar handles cargo transfers. Without power, both automated insertion and extraction are blocked; manual access remains available. Electricity updates take effect on Rebar's next electricity tick.
+1. Place a **Vault Power Base** first. Its front should face the player/storage aisle; its electrical port is on the **rear service side** so wiring can stay hidden.
+2. Stack **1–6 Vault Cells directly above the base**. A seventh placement is rejected.
+3. Connect Rebar electricity to the rear of the base. The current default base load is **48 W**.
+4. When power is available, the base lights and each registered item display inside the connected Vaults brightens/glows. The vanilla Vault block itself stays in its inert state so VaultWorks does not trigger Mojang's trial-key/reward behavior. Without power, Vault storage controls and cargo operations are locked, but stored data remains safe.
+5. Open a Vault and hold the item you want to store. Registering consumes exactly **1 item** and permanently keys that Vault to that exact item identity until the count reaches zero and the registration is cleared.
+6. Place a **Vault Cargo Node directly behind a Vault Cell**. Connect Rebar cargo to the node's outward-facing side. The front of the Vault wall remains clean.
+7. Overflow purge is **OFF by default**. When enabled for a Vault, matching input beyond capacity is intentionally destroyed; when disabled, excess stays at the source.
+8. Break a filled Vault Cell normally and the stored state travels with the dropped Vault Cell item. Place that item above another valid Vault Power Base to restore it.
 
-For GridWorks control, wire supply through a Power Coupler to the cell; aim a Smart Breaker and optional Power Limiter at the coupler. The addons do not depend on each other. GridWorks Inventory Sensors can already read the cell using Rebar's public virtual-inventory interface.
+The Power Base uses a lit copper-bulb shell as the safe vanilla fallback for the “powered bedrock / power mat” idea. It remains normally breakable; VaultWorks does not turn the actual world block into unbreakable Bedrock.
 
-`power.watts` and `cargo.items-per-tick` are configurable; restart after changing them. Rebar's global cargo multiplier also applies. This foundation has no per-cell polling task, world scan, forced chunk load, separate item database or queued crafting job. Power loss never clears the inventory.
+Rebar cargo is the external machine-I/O layer, not VaultWorks' future internal network protocol. The planned Vault Index and Vault Terminal will perform validated operations directly against attached Vault Cells, while future import/export interfaces will bridge indexed storage to Rebar cargo.
+
+`power.watts` and `cargo.items-per-tick` are configurable; restart after changing them. Rebar's global cargo multiplier also applies. The storage foundation has no world scan, forced chunk loading, or per-Vault polling task.
 
 Build with Java 25: `./gradlew clean build`. The raw plugin JAR is in `build/libs/`.
 

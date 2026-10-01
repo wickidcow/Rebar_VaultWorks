@@ -1,8 +1,8 @@
 # VaultWorks Roadmap
 
-VaultWorks 0.1.0 has a playable **physical-cell and native-electricity foundation**.
+VaultWorks 0.2.0-SNAPSHOT has a playable **portable bulk-storage and powered-column foundation**.
 
-Implemented: 54-slot Basic and Powered Vault Cells, Rebar-managed item persistence, direct access during outages, and power-gated Rebar cargo. Distributed indexing, reservations and request crafting remain future work and require the transaction/recovery contracts below.
+Implemented: single-item Basic and Powered Vault Cells, portable stored state on the dropped cell item, floating registered-item displays, a six-high Vault Power Base column, rear Vault Cargo Nodes, power-gated controls/cargo, safe overflow-purge toggles, and recovery of the earlier 54-slot prototype data. Distributed indexing, reservations and request crafting remain future work and require the transaction/recovery contracts below.
 
 ## Phase 0 — Architecture contract
 
@@ -22,20 +22,26 @@ Deliverable: architecture tests and immutable core data models.
 
 ## Phase 1 — Physical cells
 
-Implement:
+Implemented foundation:
 
-- one Basic Vault Cell;
-- durable inventory;
-- capacity enforcement;
-- type limits;
-- endpoint UUID;
-- safe save/load;
+- one registered item identity per Vault Cell;
+- long-count bulk capacity enforcement;
+- portable save/break/replace state;
+- six-high powered physical columns;
+- rear Rebar cargo adapters;
+- overflow handling that is safe-by-default;
+- legacy prototype recovery.
+
+Still to add before Phase 1 is considered complete:
+
+- stable endpoint UUID;
 - duplicate-ID detection;
-- inventory revision.
+- explicit inventory revision/change events;
+- restart and crash-window regression tests.
 
-No network yet.
+No indexed network yet.
 
-Primary goal: prove storage cannot dupe or lose items across restart.
+Primary goal: prove storage cannot dupe or lose items across restart or physical relocation.
 
 ## Phase 2 — Indexed network
 
@@ -172,7 +178,7 @@ Possible signals:
 
 ### Rebar electricity
 
-Once electricity exists in a released supported Rebar artifact, advanced terminals/index/fabrication devices may consume power through the public electricity API.
+The current storage foundation uses Rebar's electricity API through the Vault Power Base. Future terminals, index devices and fabrication hardware may consume power through the same public API.
 
 VaultWorks should never own power simulation.
 

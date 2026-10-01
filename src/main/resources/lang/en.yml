@@ -2,17 +2,58 @@ addon: "VaultWorks"
 guide:
   page:
     vaultworks: "VaultWorks"
+
 item:
+  encoded_circuit:
+    name: "Encoded Circuit"
+    lore: |-
+      <arrow> Core logic component for VaultWorks devices
+      <arrow> Used by storage, power, indexing and fabrication hardware
+
+  memory_wafer:
+    name: "Memory Wafer"
+    lore: |-
+      <arrow> Stores item and network metadata
+      <arrow> A building block for lattices and indexed storage
+
+  storage_lattice:
+    name: "Storage Lattice"
+    lore: |-
+      <arrow> Structured storage memory for VaultWorks cells
+      <arrow> Honeycomb-inspired visual without requiring a resource pack
+
+  vault_power_base:
+    name: "Vault Power Base"
+    lore: |-
+      <arrow> Place directly below a vertical Vault Cell column
+      <arrow> Powers up to 6 contiguous Vault Cells above it
+      <arrow> Rear-facing Rebar power port keeps wiring behind the Vault wall
+      <arrow> The base lights when energized; stored-item displays brighten when online
+      <arrow> Storage controls and cargo lock when the base is not powered
+
+  vault_cargo_node:
+    name: "Vault Cargo Node"
+    lore: |-
+      <arrow> Place directly behind a Vault Cell
+      <arrow> Connect Rebar cargo to the outward-facing side
+      <arrow> Moves only the item registered in that Vault
+      <arrow> Automatically stops when the Vault column loses power
+
   basic_vault_cell:
     name: "Basic Vault Cell"
     lore: |-
-      <arrow> 54 slots of physical storage
-      <arrow> Right-click to open; no electricity required
-      <arrow> Breaking the cell drops its contents
+      <arrow> Single-item high-capacity physical storage
+      <arrow> Hold an item and register exactly 1 from the GUI
+      <arrow> The registered item floats inside the Vault block
+      <arrow> Quick deposit/withdraw and optional overflow purge
+      <arrow> Placement is limited to a 6-cell column above a Vault Power Base
+      <arrow> Breaking the Vault keeps its stored state inside the dropped cell
+
   powered_vault_cell:
     name: "Powered Vault Cell"
     lore: |-
-      <arrow> 54 slots with native Rebar electric cargo access
-      <arrow> Power port on top; cargo input WEST, output EAST
-      <arrow> Automation pauses without power; manual access stays available
-      <arrow> Breaking the cell drops its contents
+      <arrow> Higher-capacity single-item Vault storage
+      <arrow> Uses the ominous Vault visual for the advanced tier
+      <arrow> Uses the same Vault Power Base and rear Cargo Node layout
+      <arrow> Must be in a powered column of no more than 6 Vault Cells
+      <arrow> Breaking the Vault keeps its stored state inside the dropped cell
