@@ -66,7 +66,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     public BasicVaultCell(@NotNull Block block, @NotNull BlockCreateContext context) {
         super(block, context);
         loadPortableState(context.getItem() == null ? null : context.getItem().getPersistentDataContainer());
-        setVaultShell(false, context.getFacing());
+        VaultPowerBase base = getPowerBase();
+        setVaultShell(false, base == null ? context.getFacing() : base.getFacing());
     }
 
     public BasicVaultCell(@NotNull Block block, @NotNull PersistentDataContainer pdc) {
