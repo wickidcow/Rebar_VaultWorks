@@ -39,6 +39,9 @@ final class VaultWorksCommand implements CommandExecutor {
         if (plugin.policy() == null) {
             failures.add("power policy unavailable");
         }
+        if (plugin.storagePolicy() == null) {
+            failures.add("storage policy unavailable");
+        }
         if (plugin.wirelessPolicy() == null) {
             failures.add("wireless policy unavailable");
         }
@@ -60,6 +63,12 @@ final class VaultWorksCommand implements CommandExecutor {
                 "Power: base=" + plugin.policy().baseWatts()
                         + "W + " + plugin.policy().wattsPerVault() + "W/vault"
                         + " | cargo=" + plugin.policy().transferRate() + "/tick"
+        ));
+        sender.sendMessage(Component.text(
+                "Storage: basic=" + plugin.storagePolicy().basicCapacity()
+                        + " | powered=" + plugin.storagePolicy().poweredCapacity()
+                        + " | network-nodes=" + plugin.storagePolicy().maxNetworkNodes()
+                        + " | terminal-types=" + plugin.storagePolicy().maxTerminalItemTypes()
         ));
         sender.sendMessage(Component.text(
                 "Wireless: transmitter=" + plugin.wirelessPolicy().transmitterWatts()
