@@ -22,6 +22,22 @@ item:
       <arrow> Structured storage memory for VaultWorks cells
       <arrow> Honeycomb-inspired visual without requiring a resource pack
 
+  vault_link:
+    name: "Vault Link Cable"
+    lore: |-
+      <arrow> Explicit metadata link for VaultWorks indexing
+      <arrow> Connect Vault Index blocks to Vault Power Bases
+      <arrow> Adjacent Power Bases can link directly
+      <arrow> Passive: no ticking, no item ownership and no chunk loading
+
+  vault_index:
+    name: "Vault Index"
+    lore: |-
+      <arrow> Read-only overview of explicitly connected Vault storage
+      <arrow> Shows columns, Vaults, item types, capacity and accessible stock
+      <arrow> Traverses loaded Vault Links and Power Bases only
+      <arrow> Does not move or own items
+
   vault_power_base:
     name: "Vault Power Base"
     lore: |-

@@ -18,3 +18,8 @@ storage:
   # Safety default: false means excess input remains at the source.
   # Players may enable purge per Vault Cell from its GUI.
   overflow-purge-default: false
+
+# Read-only Vault Index topology safety bound.
+# Traversal follows only loaded Vault Link, Vault Index and Vault Power Base blocks.
+index:
+  max-network-nodes: 4096

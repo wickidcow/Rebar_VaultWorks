@@ -45,15 +45,21 @@ Primary goal: prove storage cannot dupe or lose items across restart or physical
 
 ## Phase 2 — Indexed network
 
-Implement:
+Implemented foundation:
 
-- explicit topology;
-- Vault Index;
-- endpoint registration;
-- change-driven summaries;
-- network totals;
-- unloaded endpoint state;
-- network split/merge handling.
+- explicit loaded-block topology through Vault Link Cables and Vault Power Bases;
+- bounded iterative traversal with no world scan or force-loading;
+- read-only Vault Index network totals;
+- online/offline column counts;
+- physical stored/capacity totals and distinct item-type counts.
+
+Still to implement:
+
+- stable endpoint registration/UUIDs;
+- change-driven cached summaries;
+- explicit unloaded-endpoint metadata;
+- network split/merge reconciliation;
+- searchable item index used by the future terminal.
 
 Primary goal: the index can be deleted/rebuilt without losing items.
 
