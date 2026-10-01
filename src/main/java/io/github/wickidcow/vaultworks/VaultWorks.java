@@ -55,6 +55,8 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         NamespacedKey circuitKey = new NamespacedKey(this, "encoded_circuit");
         NamespacedKey waferKey = new NamespacedKey(this, "memory_wafer");
         NamespacedKey latticeKey = new NamespacedKey(this, "storage_lattice");
+        NamespacedKey linkKey = new NamespacedKey(this, "vault_link");
+        NamespacedKey indexKey = new NamespacedKey(this, "vault_index");
         NamespacedKey powerBaseKey = new NamespacedKey(this, "vault_power_base");
         NamespacedKey cargoNodeKey = new NamespacedKey(this, "vault_cargo_node");
         NamespacedKey basicKey = new NamespacedKey(this, "basic_vault_cell");
@@ -63,6 +65,8 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         ItemStack circuitItem = ItemStackBuilder.rebar(Material.CLOCK, circuitKey).build();
         ItemStack waferItem = ItemStackBuilder.rebar(Material.ECHO_SHARD, waferKey).build();
         ItemStack latticeItem = ItemStackBuilder.rebar(Material.HONEYCOMB, latticeKey).build();
+        ItemStack linkItem = ItemStackBuilder.rebar(Material.COPPER_GRATE, linkKey).build();
+        ItemStack indexItem = ItemStackBuilder.rebar(Material.LODESTONE, indexKey).build();
 
         ItemStack powerBaseItem = ItemStackBuilder.rebar(Material.COPPER_BULB, powerBaseKey).build();
         ItemStack cargoNodeItem = ItemStackBuilder.rebar(Material.CHISELED_COPPER, cargoNodeKey).build();
@@ -79,11 +83,15 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         RebarItem.register(RebarItem.class, waferItem);
         RebarItem.register(RebarItem.class, latticeItem);
 
+        RebarBlock.register(linkKey, Material.COPPER_GRATE, VaultLinkCable.class);
+        RebarBlock.register(indexKey, Material.LODESTONE, VaultIndex.class);
         RebarBlock.register(powerBaseKey, Material.COPPER_BULB, VaultPowerBase.class);
         RebarBlock.register(cargoNodeKey, Material.CHISELED_COPPER, VaultCargoNode.class);
         RebarBlock.register(basicKey, Material.VAULT, BasicVaultCell.class);
         RebarBlock.register(poweredKey, Material.VAULT, PoweredVaultCell.class);
 
+        RebarItem.register(RebarItem.class, linkItem, linkKey);
+        RebarItem.register(RebarItem.class, indexItem, indexKey);
         RebarItem.register(RebarItem.class, powerBaseItem, powerBaseKey);
         RebarItem.register(VaultCargoNodeItem.class, cargoNodeItem, cargoNodeKey);
         RebarItem.register(VaultCellItem.class, basicItem, basicKey);
@@ -103,6 +111,18 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
                 .setIngredient('Q', Material.QUARTZ)
                 .setIngredient('C', Material.COPPER_INGOT)
                 .setIngredient('W', exact(waferItem)));
+
+        recipe(new ShapedRecipe(linkKey, linkItem.asQuantity(8)).shape("CWC", "RQR", "CWC")
+                .setIngredient('C', Material.COPPER_INGOT)
+                .setIngredient('W', exact(waferItem))
+                .setIngredient('R', Material.REDSTONE)
+                .setIngredient('Q', Material.QUARTZ));
+
+        recipe(new ShapedRecipe(indexKey, indexItem).shape("LWL", "ECE", "LWL")
+                .setIngredient('L', exact(latticeItem))
+                .setIngredient('W', exact(waferItem))
+                .setIngredient('E', Material.ENDER_EYE)
+                .setIngredient('C', Material.COMPARATOR));
 
         recipe(new ShapedRecipe(powerBaseKey, powerBaseItem).shape("CRC", "LUL", "CRC")
                 .setIngredient('C', Material.COPPER_INGOT)
@@ -132,6 +152,8 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         page.addItem(circuitItem);
         page.addItem(waferItem);
         page.addItem(latticeItem);
+        page.addItem(linkItem);
+        page.addItem(indexItem);
         page.addItem(powerBaseItem);
         page.addItem(basicItem);
         page.addItem(poweredItem);
@@ -141,7 +163,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         RebarGuide.getRootPage().addButton(guide);
 
         getLogger().info(
-                "VaultWorks ready: portable bulk Vault Cells, six-high powered columns and rear Rebar cargo nodes."
+                "VaultWorks ready: portable bulk Vault Cells, six-high powered columns, rear cargo and explicit read-only indexing."
         );
     }
 
