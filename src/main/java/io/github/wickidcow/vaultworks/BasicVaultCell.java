@@ -6,7 +6,9 @@ import io.github.pylonmc.rebar.block.context.BlockBreakContext;
 import io.github.pylonmc.rebar.block.context.BlockCreateContext;
 import io.github.pylonmc.rebar.block.interfaces.BlockBreakRebarBlockHandler;
 import io.github.pylonmc.rebar.block.interfaces.GuiRebarBlock;
+import io.github.pylonmc.rebar.block.interfaces.UnloadRebarBlockHandler;
 import io.github.pylonmc.rebar.datatypes.RebarSerializers;
+import io.github.pylonmc.rebar.event.RebarBlockUnloadEvent;
 import io.github.pylonmc.rebar.item.RebarItemSchema;
 import io.github.pylonmc.rebar.item.builder.ItemStackBuilder;
 import io.github.pylonmc.rebar.util.gui.GuiItems;
@@ -24,6 +26,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.Vault;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -41,7 +44,7 @@ import xyz.xenondevs.invui.item.ItemProvider;
  * The registered item and amount live on the block and are also copied into the
  * dropped Vault Cell item, so breaking/replacing a cell never sprays its contents.
  */
-public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBreakRebarBlockHandler {
+public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBreakRebarBlockHandler, UnloadRebarBlockHandler {
 
     public static final int MAX_COLUMN_HEIGHT = 6;
 
@@ -358,6 +361,13 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
         ItemStackBuilder.of(drop).lore(lore);
         return drop;
+    }
+
+    @Override
+    public void onUnload(@NotNull RebarBlockUnloadEvent event, @NotNull EventPriority priority) {
+        // The ItemDisplay itself is persistent and unloads with the chunk. Forget only
+        // the live UUID cache so the next load can recover it without retaining cells forever.
+        VaultDisplayManager.forget(this);
     }
 
     @Override
