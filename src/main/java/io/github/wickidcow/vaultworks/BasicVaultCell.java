@@ -162,7 +162,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         guiButtons.forEach(VaultButton::refresh);
     }
 
-    private void loadPortableState(PersistentDataContainer pdc) {
+    private void loadPortableState(PersistentDataContainerView pdc) {
         boolean defaultPurge = VaultWorks.instance().getConfig().getBoolean("storage.overflow-purge-default", false);
         purgeOverflow = defaultPurge;
         if (pdc == null) {
