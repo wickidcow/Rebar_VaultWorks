@@ -1,7 +1,10 @@
 # One Vault Power Base supplies one contiguous column of up to six Vault Cells.
 # Power is consumed by the base; Vault Cells themselves have no visible wire port.
 power:
-  watts: 48.0
+  # Idle electronics / column-controller demand.
+  base-watts: 16.0
+  # Additional demand for every contiguous Vault Cell above the base.
+  watts-per-vault: 8.0
 
 # Rebar applies its global cargo transfer multiplier to the rear Vault Cargo Node.
 cargo:
