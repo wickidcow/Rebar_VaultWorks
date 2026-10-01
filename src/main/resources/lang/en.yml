@@ -27,7 +27,8 @@ item:
     lore: |-
       <arrow> Place directly below a vertical Vault Cell column
       <arrow> Powers up to 6 contiguous Vault Cells above it
-      <arrow> Rebar electrical connection is underneath the base
+      <arrow> Rear-facing Rebar power port keeps wiring behind the Vault wall
+      <arrow> The base lights when energized; Vault shells switch active/inactive
       <arrow> Storage controls and cargo lock when the base is not powered
 
   vault_cargo_node:
@@ -45,7 +46,7 @@ item:
       <arrow> Hold an item and register exactly 1 from the GUI
       <arrow> The registered item floats inside the Vault block
       <arrow> Quick deposit/withdraw and optional overflow purge
-      <arrow> Must be in a powered column of no more than 6 Vault Cells
+      <arrow> Placement is limited to a 6-cell column above a Vault Power Base
       <arrow> Breaking the Vault keeps its stored state inside the dropped cell
 
   powered_vault_cell:
