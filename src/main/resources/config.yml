@@ -1,6 +1,16 @@
 # Native Rebar electricity, in watts. Restart after changes.
 power:
   watts: 32.0
+
 # Rebar applies its own global cargo transfer multiplier to this value.
 cargo:
   items-per-tick: 8
+
+storage:
+  # Single-item bulk capacity. Existing contents are never truncated if this is lowered.
+  basic-capacity: 1000000
+  powered-capacity: 1000000
+
+  # Safety default: false means excess input remains at the source.
+  # Players may enable purge per Vault Cell from its GUI.
+  overflow-purge-default: false
