@@ -45,7 +45,8 @@ item:
       <arrow> Paged view shows total and currently accessible stock
       <arrow> Live anvil search supports names, @namespace, #online and #offline
       <arrow> Search filters one captured snapshot; no per-keystroke network scan
-      <arrow> Read-only foundation: withdrawals and deposits are not enabled yet
+      <arrow> Five persisted output-only claim slots survive reloads
+      <arrow> Read-only network foundation: withdrawals and deposits are not enabled yet
 
   vault_power_base:
     name: "Vault Power Base"
