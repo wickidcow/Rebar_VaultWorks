@@ -3,12 +3,14 @@ package io.github.wickidcow.vaultworks;
 import io.github.pylonmc.rebar.block.RebarBlock;
 import io.github.pylonmc.rebar.block.context.BlockCreateContext;
 import io.github.pylonmc.rebar.block.interfaces.GuiRebarBlock;
+import io.github.pylonmc.rebar.block.interfaces.VirtualInventoryRebarBlock;
 import io.github.pylonmc.rebar.item.RebarItemSchema;
 import io.github.pylonmc.rebar.item.builder.ItemStackBuilder;
 import io.github.pylonmc.rebar.util.gui.GuiItems;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -27,6 +29,8 @@ import xyz.xenondevs.invui.gui.PagedGui;
 import xyz.xenondevs.invui.item.AbstractItem;
 import xyz.xenondevs.invui.item.Item;
 import xyz.xenondevs.invui.item.ItemProvider;
+import xyz.xenondevs.invui.inventory.VirtualInventory;
+import xyz.xenondevs.invui.inventory.event.PlayerUpdateReason;
 import xyz.xenondevs.invui.window.AnvilWindow;
 
 /**
@@ -36,14 +40,36 @@ import xyz.xenondevs.invui.window.AnvilWindow;
  * topology, exact item identity and pagination mature before transactional
  * withdrawal/deposit is introduced.
  */
-public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
+public final class VaultTerminal extends RebarBlock implements GuiRebarBlock, VirtualInventoryRebarBlock {
+
+    private static final String CLAIM_INVENTORY_NAME = "claim";
+    private static final int CLAIM_SLOTS = 5;
+
+    private final VirtualInventory claimInventory;
 
     public VaultTerminal(@NotNull Block block, @NotNull BlockCreateContext context) {
         super(block, context);
+        claimInventory = createClaimInventory();
     }
 
     public VaultTerminal(@NotNull Block block, @NotNull PersistentDataContainer pdc) {
         super(block, pdc);
+        claimInventory = createClaimInventory();
+    }
+
+    private VirtualInventory createClaimInventory() {
+        VirtualInventory inventory = new VirtualInventory(CLAIM_SLOTS);
+        inventory.addPreUpdateHandler(event -> {
+            if (event.getUpdateReason() instanceof PlayerUpdateReason && !event.isRemove()) {
+                event.setCancelled(true);
+            }
+        });
+        return inventory;
+    }
+
+    @Override
+    public @NotNull Map<String, VirtualInventory> getVirtualInventories() {
+        return Map.of(CLAIM_INVENTORY_NAME, claimInventory);
     }
 
     @Override
@@ -52,7 +78,7 @@ public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
 
         return PagedGui.itemsBuilder()
                 .setStructure(
-                        "# q # s # r # # #",
+                        "q c c c c c s r i",
                         "x x x x x x x x x",
                         "x x x x x x x x x",
                         "x x x x x x x x x",
@@ -61,8 +87,10 @@ public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
                 )
                 .addIngredient('#', GuiItems.backgroundBlack())
                 .addIngredient('q', new SearchButton())
+                .addIngredient('c', claimInventory)
                 .addIngredient('s', new NetworkSummaryButton(view.snapshot(), view.itemsTruncated()))
                 .addIngredient('r', new RefreshButton())
+                .addIngredient('i', new ClaimInfoButton())
                 .addIngredient('x', Markers.CONTENT_LIST_SLOT_HORIZONTAL)
                 .addIngredient('<', GuiItems.pagePrevious())
                 .addIngredient('>', GuiItems.pageNext())
@@ -80,7 +108,7 @@ public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
 
     @Override
     public @NotNull Component getGuiTitle() {
-        return Component.text("Vault Terminal — Read Only");
+        return Component.text("Vault Terminal — Browse + Claim Buffer");
     }
 
     private void openSearch(Player player) {
@@ -200,6 +228,33 @@ public final class VaultTerminal extends RebarBlock implements GuiRebarBlock {
         @Override
         public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
             // Intentionally read-only until transactional terminal operations are implemented.
+        }
+    }
+
+    private final class ClaimInfoButton extends AbstractItem {
+        @Override
+        public @NotNull ItemProvider getItemProvider(@NotNull Player viewer) {
+            int occupied = 0;
+            for (ItemStack item : claimInventory.getItems()) {
+                if (item != null && !item.isEmpty()) {
+                    occupied++;
+                }
+            }
+
+            return ItemStackBuilder.of(Material.BUNDLE)
+                    .name(Component.text("Terminal Claim Buffer"))
+                    .lore(
+                            Component.text("Output-only persisted handoff inventory."),
+                            Component.text("Take items from the five claim slots to the left."),
+                            Component.text("Players cannot insert or swap items into these slots."),
+                            Component.text("Occupied slots: " + occupied + " / " + CLAIM_SLOTS),
+                            Component.text("Contents survive reloads and drop if the Terminal is broken."),
+                            Component.text("Network withdrawal is not enabled yet.")
+                    );
+        }
+
+        @Override
+        public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
         }
     }
 
