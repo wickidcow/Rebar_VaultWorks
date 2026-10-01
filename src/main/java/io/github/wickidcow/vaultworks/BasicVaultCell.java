@@ -374,6 +374,11 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     public void onBlockBreak(@NotNull List<ItemStack> drops, @NotNull BlockBreakContext context) {
         VaultDisplayManager.remove(this);
 
+        VaultPowerBase base = getPowerBase();
+        if (base != null) {
+            base.refreshAfterCellBreak(this);
+        }
+
         // Breaking any cell in the column immediately de-energizes every cell above
         // the gap. Their contents remain portable and untouched.
         for (int height = 1; height <= MAX_COLUMN_HEIGHT; height++) {
