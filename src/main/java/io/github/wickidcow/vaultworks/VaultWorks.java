@@ -24,7 +24,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class VaultWorks extends JavaPlugin implements RebarAddon {
     private static VaultWorks instance;
 
+    private final VaultDeleteConfirmations deleteConfirmations = new VaultDeleteConfirmations();
     private PowerPolicy policy;
+    private StoragePolicy storagePolicy;
+    private WirelessPolicy wirelessPolicy;
+    private final VaultWirelessRegistry wirelessRegistry = new VaultWirelessRegistry();
     private PageButton guide;
     private final List<NamespacedKey> recipes = new ArrayList<>();
 
@@ -34,14 +38,18 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
             Class.forName("io.github.pylonmc.rebar.block.interfaces.ElectricRebarBlock", false, getClassLoader());
         } catch (ClassNotFoundException exception) {
             throw new IllegalStateException(
-                    "VaultWorks requires electricity-enabled Rebar build 2064 (commit 5e34938). "
-                            + "Stable Rebar 0.43.0-26.2 does not include electricity.",
+                    "VaultWorks requires Rebar 0.44.2-26.2 or a compatible electricity-enabled build. "
+                            + "Install the matching Rebar server plugin for your Paper version.",
                     exception
             );
         }
 
         VaultEndpointRegistry.clear();
         instance = this;
+        VaultWorksContentCatalog.validate();
+        java.util.Objects.requireNonNull(getCommand("vaultworks"))
+                .setExecutor(new VaultWorksCommand(this));
+        Bukkit.getPluginManager().registerEvents(deleteConfirmations, this);
         saveDefaultConfig();
         migrateConfig();
         double legacyWatts = getConfig().getDouble("power.watts", 48.0D);
@@ -50,8 +58,24 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
                 getConfig().getDouble("power.watts-per-vault", 0.0D),
                 getConfig().getInt("cargo.items-per-tick", 8)
         );
+        storagePolicy = new StoragePolicy(
+                getConfig().getLong("storage.basic-capacity", 1_000_000L),
+                getConfig().getLong("storage.powered-capacity", 4_000_000L),
+                getConfig().getInt("index.max-network-nodes", 4096),
+                getConfig().getInt("terminal.max-item-types", 4096)
+        );
+        wirelessPolicy = new WirelessPolicy(
+                getConfig().getDouble("wireless.transmitter-watts", 32.0D),
+                getConfig().getDouble("wireless.base-range-blocks", 64.0D),
+                getConfig().getDouble("wireless.antenna-range-blocks", 512.0D),
+                getConfig().getBoolean("wireless.allow-cross-dimension", true)
+        );
 
         registerWithRebar();
+        NamespacedKey testPower = new NamespacedKey(this, "test_power_source");
+        RebarItem.register(VaultTestPowerSourceItem.class,
+                ItemStackBuilder.rebar(Material.DAYLIGHT_DETECTOR, testPower).build(), testPower);
+        RebarBlock.register(testPower, Material.DAYLIGHT_DETECTOR, VaultTestPowerSource.class);
 
         NamespacedKey circuitKey = new NamespacedKey(this, "encoded_circuit");
         NamespacedKey waferKey = new NamespacedKey(this, "memory_wafer");
@@ -59,6 +83,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         NamespacedKey linkKey = new NamespacedKey(this, "vault_link");
         NamespacedKey indexKey = new NamespacedKey(this, "vault_index");
         NamespacedKey terminalKey = new NamespacedKey(this, "vault_terminal");
+        NamespacedKey transmitterKey = new NamespacedKey(this, "vault_transmitter");
+        NamespacedKey antennaKey = new NamespacedKey(this, "vault_antenna");
+        NamespacedKey dimensionalAntennaKey = new NamespacedKey(this, "dimensional_vault_antenna");
+        NamespacedKey wirelessTerminalKey = new NamespacedKey(this, "wireless_vault_terminal");
         NamespacedKey powerBaseKey = new NamespacedKey(this, "vault_power_base");
         NamespacedKey cargoNodeKey = new NamespacedKey(this, "vault_cargo_node");
         NamespacedKey basicKey = new NamespacedKey(this, "basic_vault_cell");
@@ -70,37 +98,69 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         ItemStack linkItem = ItemStackBuilder.rebar(Material.COPPER_GRATE, linkKey).build();
         ItemStack indexItem = ItemStackBuilder.rebar(Material.LODESTONE, indexKey).build();
         ItemStack terminalItem = ItemStackBuilder.rebar(Material.ENDER_CHEST, terminalKey).build();
+        ItemStack transmitterItem = ItemStackBuilder.rebar(
+                Material.CALIBRATED_SCULK_SENSOR,
+                transmitterKey
+        ).build();
+        ItemStack antennaItem = ItemStackBuilder.rebar(Material.LIGHTNING_ROD, antennaKey).build();
+        ItemStack dimensionalAntennaItem = ItemStackBuilder.rebar(
+                Material.END_ROD,
+                dimensionalAntennaKey
+        ).build();
+        ItemStack wirelessTerminalItem = ItemStackBuilder.rebar(
+                        Material.RECOVERY_COMPASS,
+                        wirelessTerminalKey
+                )
+                .set(DataComponentTypes.MAX_STACK_SIZE, 1)
+                .build();
 
         ItemStack powerBaseItem = ItemStackBuilder.rebar(Material.COPPER_BULB, powerBaseKey).build();
         ItemStack cargoNodeItem = ItemStackBuilder.rebar(Material.CHISELED_COPPER, cargoNodeKey).build();
 
-        // Vault Cells are non-stackable because a broken cell may contain its complete portable state.
+        // Crafted empty cells stack. Filled/conflicted portable drops explicitly use a stack limit of one.
         ItemStack basicItem = ItemStackBuilder.rebar(Material.VAULT, basicKey)
-                .set(DataComponentTypes.MAX_STACK_SIZE, 1)
+                .set(DataComponentTypes.MAX_STACK_SIZE, 64)
                 .build();
         ItemStack poweredItem = ItemStackBuilder.rebar(Material.VAULT, poweredKey)
-                .set(DataComponentTypes.MAX_STACK_SIZE, 1)
+                .set(DataComponentTypes.MAX_STACK_SIZE, 64)
                 .build();
 
         RebarItem.register(RebarItem.class, circuitItem);
         RebarItem.register(RebarItem.class, waferItem);
         RebarItem.register(RebarItem.class, latticeItem);
 
+        RebarItem.register(RebarItem.class, linkItem, linkKey);
+        RebarItem.register(RebarItem.class, indexItem, indexKey);
+        RebarItem.register(RebarItem.class, terminalItem, terminalKey);
+        RebarItem.register(RebarItem.class, transmitterItem, transmitterKey);
+        RebarItem.register(RebarItem.class, antennaItem, antennaKey);
+        RebarItem.register(RebarItem.class, dimensionalAntennaItem, dimensionalAntennaKey);
+        RebarItem.register(WirelessVaultTerminalItem.class, wirelessTerminalItem);
+        RebarItem.register(RebarItem.class, powerBaseItem, powerBaseKey);
+        RebarItem.register(VaultCargoNodeItem.class, cargoNodeItem, cargoNodeKey);
+        RebarItem.register(VaultCellItem.class, basicItem, basicKey);
+        RebarItem.register(VaultCellItem.class, poweredItem, poweredKey);
+
+        // Rebar captures the default drop item when its block schema is registered.
         RebarBlock.register(linkKey, Material.COPPER_GRATE, VaultLinkCable.class);
         RebarBlock.register(indexKey, Material.LODESTONE, VaultIndex.class);
         RebarBlock.register(terminalKey, Material.ENDER_CHEST, VaultTerminal.class);
+        RebarBlock.register(
+                transmitterKey,
+                Material.CALIBRATED_SCULK_SENSOR,
+                VaultTransmitter.class
+        );
+        RebarBlock.register(antennaKey, Material.LIGHTNING_ROD, VaultAntenna.class);
+        RebarBlock.register(
+                dimensionalAntennaKey,
+                Material.END_ROD,
+                DimensionalVaultAntenna.class
+        );
         RebarBlock.register(powerBaseKey, Material.COPPER_BULB, VaultPowerBase.class);
         RebarBlock.register(cargoNodeKey, Material.CHISELED_COPPER, VaultCargoNode.class);
         RebarBlock.register(basicKey, Material.VAULT, BasicVaultCell.class);
         RebarBlock.register(poweredKey, Material.VAULT, PoweredVaultCell.class);
 
-        RebarItem.register(RebarItem.class, linkItem, linkKey);
-        RebarItem.register(RebarItem.class, indexItem, indexKey);
-        RebarItem.register(RebarItem.class, terminalItem, terminalKey);
-        RebarItem.register(RebarItem.class, powerBaseItem, powerBaseKey);
-        RebarItem.register(VaultCargoNodeItem.class, cargoNodeItem, cargoNodeKey);
-        RebarItem.register(VaultCellItem.class, basicItem, basicKey);
-        RebarItem.register(VaultCellItem.class, poweredItem, poweredKey);
 
         recipe(new ShapedRecipe(circuitKey, circuitItem).shape("CRC", "RQR", "CRC")
                 .setIngredient('C', Material.COPPER_INGOT)
@@ -135,6 +195,28 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
                 .setIngredient('E', Material.ENDER_EYE)
                 .setIngredient('C', Material.ENDER_CHEST));
 
+        recipe(new ShapedRecipe(transmitterKey, transmitterItem).shape("AWA", "ITI", "ACA")
+                .setIngredient('A', Material.AMETHYST_SHARD)
+                .setIngredient('W', exact(waferItem))
+                .setIngredient('I', Material.IRON_INGOT)
+                .setIngredient('T', exact(terminalItem))
+                .setIngredient('C', exact(circuitItem)));
+
+        recipe(new ShapedRecipe(antennaKey, antennaItem).shape(" A ", "ACA", " C ")
+                .setIngredient('A', Material.AMETHYST_SHARD)
+                .setIngredient('C', Material.COPPER_INGOT));
+
+        recipe(new ShapedRecipe(dimensionalAntennaKey, dimensionalAntennaItem).shape("EAE", "AWA", "EAE")
+                .setIngredient('E', Material.ENDER_EYE)
+                .setIngredient('A', Material.AMETHYST_SHARD)
+                .setIngredient('W', exact(waferItem)));
+
+        recipe(new ShapedRecipe(wirelessTerminalKey, wirelessTerminalItem).shape("EWE", "CTC", "EWE")
+                .setIngredient('E', Material.ENDER_PEARL)
+                .setIngredient('W', exact(waferItem))
+                .setIngredient('C', Material.COPPER_INGOT)
+                .setIngredient('T', exact(terminalItem)));
+
         recipe(new ShapedRecipe(powerBaseKey, powerBaseItem).shape("CRC", "LUL", "CRC")
                 .setIngredient('C', Material.COPPER_INGOT)
                 .setIngredient('R', Material.REDSTONE)
@@ -159,6 +241,14 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
                 .setIngredient('E', Material.ENDER_PEARL)
                 .setIngredient('C', exact(basicItem)));
 
+        if (recipes.size() != VaultWorksContentCatalog.ALL_IDS.size()) {
+            throw new IllegalStateException(
+                    "VaultWorks recipe count does not match content catalog: "
+                            + recipes.size() + " != "
+                            + VaultWorksContentCatalog.ALL_IDS.size()
+            );
+        }
+
         SimpleStaticGuidePage page = new SimpleStaticGuidePage(new NamespacedKey(this, "vaultworks"));
         page.addItem(circuitItem);
         page.addItem(waferItem);
@@ -166,6 +256,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         page.addItem(linkItem);
         page.addItem(indexItem);
         page.addItem(terminalItem);
+        page.addItem(transmitterItem);
+        page.addItem(antennaItem);
+        page.addItem(dimensionalAntennaItem);
+        page.addItem(wirelessTerminalItem);
         page.addItem(powerBaseItem);
         page.addItem(basicItem);
         page.addItem(poweredItem);
@@ -175,7 +269,11 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         RebarGuide.getRootPage().addButton(guide);
 
         getLogger().info(
-                "VaultWorks ready: portable bulk Vault Cells, powered columns, rear cargo, explicit indexing and a paged read-only terminal."
+                "Validated " + VaultWorksContentCatalog.ALL_IDS.size()
+                        + " VaultWorks content entries and survival recipes."
+        );
+        getLogger().info(
+                "VaultWorks ready: powered portable storage, transactional terminals, explicit indexing and loaded-only wireless access."
         );
     }
 
@@ -215,7 +313,11 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
             Bukkit.removeRecipe(key);
         }
         recipes.clear();
+        deleteConfirmations.clear();
+        wirelessRegistry.clear();
         VaultEndpointRegistry.clear();
+        storagePolicy = null;
+        wirelessPolicy = null;
         instance = null;
     }
 
@@ -225,6 +327,24 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
     public PowerPolicy policy() {
         return policy;
+    }
+
+    public StoragePolicy storagePolicy() {
+        return java.util.Objects.requireNonNull(storagePolicy, "Storage policy is not loaded");
+    }
+
+    public WirelessPolicy wirelessPolicy() {
+        return java.util.Objects.requireNonNull(wirelessPolicy, "Wireless policy is not loaded");
+    }
+
+    VaultDeleteConfirmations deleteConfirmations() { return deleteConfirmations; }
+
+    VaultWirelessRegistry wirelessRegistry() {
+        return wirelessRegistry;
+    }
+
+    int registeredRecipeCount() {
+        return recipes.size();
     }
 
     @Override

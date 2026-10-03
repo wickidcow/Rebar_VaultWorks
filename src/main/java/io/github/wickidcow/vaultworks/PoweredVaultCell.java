@@ -2,6 +2,8 @@ package io.github.wickidcow.vaultworks;
 
 import io.github.pylonmc.rebar.block.context.BlockCreateContext;
 import net.kyori.adventure.text.Component;
+import org.bukkit.event.inventory.ClickType;
+import java.util.List;
 import org.bukkit.block.Block;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.jetbrains.annotations.NotNull;
@@ -27,13 +29,30 @@ public final class PoweredVaultCell extends BasicVaultCell {
     }
 
     @Override
-    protected String capacityConfigKey() {
-        return "storage.powered-capacity";
+    protected long configuredCapacity(StoragePolicy policy) {
+        return policy.poweredCapacity();
+    }
+
+    @Override
+    protected long quickWithdrawAmount(ClickType clickType) {
+        return switch (clickType) {
+            case LEFT -> 1L;
+            case RIGHT -> 64L;
+            case SHIFT_LEFT -> Long.MAX_VALUE;
+            default -> 0L;
+        };
+    }
+
+    @Override
+    protected List<Component> quickWithdrawLore() {
+        return List.of(Component.text("Left-click: withdraw 1."),
+                Component.text("Right-click: withdraw up to 64."),
+                Component.text("Shift + left-click: fill inventory."));
     }
 
     @Override
     public @NotNull Component getGuiTitle() {
-        return Component.text("Powered Vault Cell — "
+        return Component.text("Advanced Powered Vault Cell — "
                 + (hasIdentityConflict() ? "LOCKED / ID CONFLICT" : (isOperational() ? "Online" : "Offline")));
     }
 }

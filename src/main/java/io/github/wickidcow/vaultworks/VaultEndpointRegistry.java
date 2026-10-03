@@ -67,6 +67,14 @@ final class VaultEndpointRegistry {
         return cells == null ? 0 : cells.size();
     }
 
+    static int loadedCount() {
+        return LOADED.values().stream().mapToInt(Set::size).sum();
+    }
+
+    static long conflictedCount() {
+        return LOADED.values().stream().flatMap(Set::stream).filter(BasicVaultCell::hasIdentityConflict).count();
+    }
+
     static void clear() {
         LOADED.clear();
     }

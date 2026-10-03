@@ -2,7 +2,7 @@
 
 **Distributed digital storage, indexed inventory, and request crafting for Pylon/Rebar.**
 
-VaultWorks is an early design-stage Rebar addon intended to solve a problem large technical Minecraft bases eventually hit: **storage stops being about chest capacity and becomes an information problem**.
+VaultWorks provides powered portable storage, searchable terminals, and wireless inventory access for Rebar. Request crafting is planned separately.
 
 The goal is not to clone Slimefun Networks, Applied Energistics, Refined Storage, or Infinity Expansion. VaultWorks borrows the lessons that made those systems useful while giving Rebar its own storage model:
 
@@ -12,25 +12,30 @@ There is no magic global inventory object and no world-wide storage scan.
 
 ## Project status
 
-**0.2.0-SNAPSHOT: portable bulk Vault storage and powered-column foundation implemented.**
+**0.3.0-rc.1: release-candidate storage network with transactional and wireless access.**
 
 Available now:
 
 - Encoded Circuit, Memory Wafer and Storage Lattice progression components.
-- **Basic Vault Cell** — one registered item type, configurable default capacity of **1,000,000 items**.
-- **Powered Vault Cell** — advanced ominous-Vault visual, configurable default capacity of **4,000,000 items**.
+- **Basic Powered Vault Cell** — one registered item type, configurable default capacity of **1,000,000 items**.
+- **Advanced Powered Vault Cell** — advanced ominous-Vault visual, configurable default capacity of **4,000,000 items**.
 - **Vault Power Base** — powers one contiguous vertical column of up to **6 Vault Cells**.
 - **Vault Cargo Node** — sits directly behind one Vault Cell and exposes one outward Rebar cargo connection.
 - **Vault Link Cable** — passive explicit topology for metadata/index connections.
 - **Vault Index** — read-only network overview across explicitly connected loaded Power Bases.
-- **Vault Terminal** — paged exact-item browser showing total and currently accessible stock.
+- **Vault Terminal** — paged/searchable inventory with transactional deposit and withdrawal against live physical cells.
+- **Vault Transmitter** — powered wireless access point that reuses the same terminal transaction path.
+- **Vault Antenna** — extends same-world portable-terminal range.
+- **Dimensional Vault Antenna** — permits cross-world/dimension access while the source transmitter is loaded and powered.
+- **Wireless Vault Terminal** — bindable portable terminal for player inventory access away from the storage room.
+- Persistent Vault endpoint UUIDs and monotonic storage revisions for safe identity/change tracking.
 - Floating registered-item display inside each Vault.
 - Quick deposit, quick withdraw, clear-registration control and per-Vault overflow-purge toggle.
 - Filled Vault Cells keep their stored item, count and overflow setting inside the dropped Vault item when broken, so the cell can be moved and placed elsewhere without dumping its contents.
 
-Requires Paper 26.2, Java 25, and the electricity-enabled Rebar development server JAR from upstream commit `5e34938f044dc63c103213e80b07484bf4994639`. The build pins API snapshot `1.0.0-20260929.193904-140`. Rebar's stable 0.43.0-26.2 server JAR cannot load this build; the Maven API artifact is not the server plugin.
+Requires **Paper 26.2, Java 25, and Rebar 0.44.2-26.2**. The released Rebar API and server JAR are pinned for this build. Older Rebar versions without electricity are unsupported.
 
-[Download the raw 0.2.0-SNAPSHOT JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.2.0-SNAPSHOT.jar). Place it directly in `plugins/` and restart.
+[Download the rolling raw 0.3.0-rc.1 JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.3.0-rc.1.jar). Place it directly in `plugins/` and restart. The rolling development JAR is published only after the main branch passes build, package, live Paper/Rebar startup, `/vaultworks doctor`, clean shutdown, and byte-for-byte rebuild verification.
 
 ### Build a Vault column
 
@@ -44,6 +49,34 @@ Requires Paper 26.2, Java 25, and the electricity-enabled Rebar development serv
 8. Break a filled Vault Cell normally and the stored state travels with the dropped Vault Cell item. Place that item above another valid Vault Power Base to restore it.
 
 The Power Base uses a lit copper-bulb shell as the safe vanilla fallback for the “powered bedrock / power mat” idea. It remains normally breakable; VaultWorks does not turn the actual world block into unbreakable Bedrock.
+
+### Cell controls and empty stacking
+
+Both tiers require a powered Vault Power Base. Display names are **Basic Powered Vault Cell** and **Advanced Powered Vault Cell**; their existing IDs remain `basic_vault_cell` and `powered_vault_cell`.
+
+Advanced cell Quick Withdraw:
+
+| Click | Result |
+| --- | --- |
+| Left | Withdraw 1 item |
+| Right | Withdraw up to 64 items |
+| Shift + left | Fill available inventory space |
+
+Stack limits and available inventory space are respected. Basic cells retain left-click to fill inventory and right-click for one item.
+
+Healthy empty cells stack up to 64 per tier. Unregistered empty drops with default overflow settings stack with freshly crafted cells. Registered empty cells stack only when their item registration and overflow settings match. Empty portable stacks receive fresh endpoint IDs when placed. Filled cells, cells with legacy recovery contents, and identity-conflicted cells remain unstackable and preserve their endpoint IDs.
+
+### Permanently empty a cell
+
+Click **Delete Contents** at the top-right of the cell menu. Each click reveals the next confirmation beneath it: **Are you sure? → Are you really sure? → I'm completely sure → Delete permanently — no going back**.
+
+Only the final step destroys the stored items (including any legacy recovery stacks) and clears item registration. The physical Vault stays in place. Confirmation belongs to one player, expires after 30 seconds, and resets on menu close or any cell revision change. Pause cargo first so transfers do not invalidate confirmation. There are no drops or refunds from deletion.
+
+### Temporary test power
+
+Administrators can run `/vaultworks testpower` in game to receive a **Vault Test Power Source**. It supplies **1 MW** continuously through normal Rebar electrical ports on all six sides. Connect it to the rear electrical port of a Vault Power Base or Transmitter. It does not require fuel, daylight, or a particular dimension.
+
+The block has no survival recipe and only administrators can place it. Remove it after testing. `/vaultworks doctor` reports storage policies, loaded cells, transmitters, and identity conflicts.
 
 ### Portable endpoint identity
 
@@ -59,7 +92,7 @@ If two loaded Vault Cells ever present the same endpoint UUID, VaultWorks treats
 4. Use **Refresh Index** after changing the network. Traversal is bounded by `index.max-network-nodes` (default 4096).
 5. The Index follows only loaded Vault Index, Vault Link and Vault Power Base blocks. It never scans the world and never force-loads chunks.
 
-This phase is intentionally **read-only**. The Index owns metadata only; it does not own, withdraw or insert items. Searchable terminal mutation comes after topology and identity rules are proven.
+The Index remains intentionally **read-only metadata**. Item movement belongs to the Terminal transaction layer, which re-resolves loaded powered physical Vault Cells at commit time rather than mutating cached index results.
 
 ### Browse the Vault Terminal
 
@@ -69,13 +102,26 @@ The terminal rebuilds its normal browse pages only when it is loaded or when **R
 
 Click **Search Vault Network** to open an anvil-backed live search. The network is captured once when search opens; typing filters only that in-memory snapshot. Plain words match the player's rendered item name, `@namespace` filters by addon/namespace, `#online` requires currently accessible stock, and `#offline` finds items with some stock unavailable.
 
-Item buttons remain intentionally non-interactive in this phase. Underneath the browser, VaultWorks now has revision-aware withdrawal planning: each future withdrawal identifies exact endpoint UUIDs/revisions and must revalidate the live topology before commit.
+Withdrawals arrive in the five persisted claim slots across the top row. Take items from these slots into your inventory; other players using the same terminal share this buffer. The buffer survives normal restart and drops its contents if the terminal is broken. Item buttons are transactional: **left-click** withdraws one stack, **right-click** withdraws one item, **Shift + left-click** fills the five claim slots, and **Shift + right-click** deposits all matching items. The top-row hopper deposits all inventory items that already have matching registered online Vault Cells. Empty cells are never silently auto-keyed and player terminal deposits never use overflow purge.
 
-The Terminal now also owns a **five-slot persisted Claim Buffer** across its top row. These slots are output-only for players: players may remove items, but cannot insert or swap items into them. Rebar persists the buffer with the Terminal, restores it after reload/restart, and drops its contents if the Terminal is broken. Network withdrawal is not enabled yet; this buffer establishes the recoverable destination for the upcoming storage-to-Terminal commit layer.
+Every transaction scans the loaded topology once, rejects a truncated network, revalidates the physical cell immediately before mutation, and compensates unexpected insertion/delivery shortfalls. Search results are only a view; they are never the authoritative inventory.
 
-Rebar cargo is the external machine-I/O layer, not VaultWorks' future internal network protocol. The planned Vault Index and Vault Terminal will perform validated operations directly against attached Vault Cells, while future import/export interfaces will bridge indexed storage to Rebar cargo.
+### Wireless and cross-dimensional access
+
+1. Connect a **Vault Transmitter** to the same Vault Link topology as the storage network and provide Rebar electricity.
+2. **Sneak + right-click** the transmitter with a **Wireless Vault Terminal** to bind it.
+3. Right-click the portable terminal within the configured base range (64 blocks by default).
+4. Place a **Vault Antenna** directly adjacent to the transmitter to extend same-world range (512 blocks by default).
+5. Place a **Dimensional Vault Antenna** directly adjacent to permit access from another world/dimension when enabled in config.
+6. The transmitter must remain **loaded and powered**. VaultWorks never loads its chunk or any storage chunk just because a remote player opens the terminal.
+
+Wireless access is rechecked for every transfer and claim-slot removal, including current power, range, loaded transmitter identity, and possession of a bound terminal. No world name is hard-coded into dimensional access, so future worlds/dimensions can use the same transmitter rules without a data migration.
+
+Rebar cargo is the external machine-I/O layer, not VaultWorks' future internal network protocol. The Vault Terminal performs validated operations directly against attached Vault Cells, while future import/export interfaces will bridge indexed storage to Rebar cargo.
 
 `power.base-watts`, `power.watts-per-vault`, and `cargo.items-per-tick` are configurable; restart after changing them. Rebar's global cargo multiplier also applies. The storage foundation has no world scan, forced chunk loading, or per-Vault polling task.
+
+**Release-candidate boundary:** normal operation and orderly persistence are tested. A durable cross-storage crash journal is still future work; this build does not promise atomic recovery after process termination or power failure. Request crafting and dedicated import/export interfaces remain roadmap features.
 
 Build with Java 25: `./gradlew clean build`. The raw plugin JAR is in `build/libs/`.
 
@@ -128,15 +174,17 @@ They should:
 
 The Vault Terminal is the player's searchable view of the indexed network.
 
-Planned terminal functions:
+Current terminal functions:
 
 - search all indexed items;
-- insert and withdraw;
-- sort/filter;
-- show total stored counts;
-- show which cells hold an item;
-- expose storage health and capacity;
-- optionally pin favorites.
+- transactional insert and withdraw;
+- paged sorting/filtering;
+- show total and currently accessible counts;
+- show how many cells hold an item;
+- expose network health and capacity;
+- support the same interface through a bound wireless terminal.
+
+Favorites/pinned stock remain optional quality-of-life work rather than a storage prerequisite.
 
 ### 4. Request crafting
 
@@ -168,7 +216,7 @@ Memory Wafer
       v
 Storage Lattice
       |
-      +--> Basic Vault Cell
+      +--> Basic Powered Vault Cell
       +--> Vault Index
       +--> Vault Terminal
       |

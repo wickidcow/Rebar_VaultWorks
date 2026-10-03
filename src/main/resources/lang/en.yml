@@ -41,12 +41,46 @@ item:
   vault_terminal:
     name: "Vault Terminal"
     lore: |-
-      <arrow> Browse exact item identities across the connected Vault network
+      <arrow> Search, deposit and withdraw across the connected Vault network
       <arrow> Paged view shows total and currently accessible stock
       <arrow> Live anvil search supports names, @namespace, #online and #offline
-      <arrow> Search filters one captured snapshot; no per-keystroke network scan
-      <arrow> Five persisted output-only claim slots survive reloads
-      <arrow> Read-only network foundation: withdrawals and deposits are not enabled yet
+      <arrow> Left = stack, right = 1, shift-left = fill the claim buffer
+      <arrow> Shift-right deposits matching items; top hopper deposits inventory
+      <arrow> Every mutation revalidates loaded powered physical Vault Cells
+
+  vault_transmitter:
+    name: "Vault Transmitter"
+    lore: |-
+      <arrow> Powered wireless access point for one connected Vault network
+      <arrow> Also works as a normal local Vault Terminal
+      <arrow> Bind a Wireless Vault Terminal by sneak-right-clicking this block
+      <arrow> Uses loaded-only access and never force-loads remote storage
+      <arrow> Add a Vault Antenna for longer same-world range
+
+  vault_antenna:
+    name: "Vault Antenna"
+    lore: |-
+      <arrow> Place directly adjacent to a Vault Transmitter
+      <arrow> Extends Wireless Vault Terminal range in the same world
+      <arrow> Passive upgrade with no ticking or chunk loading
+
+  dimensional_vault_antenna:
+    name: "Dimensional Vault Antenna"
+    lore: |-
+      <arrow> Endgame wireless upgrade for an adjacent Vault Transmitter
+      <arrow> Permits access from another world or dimension
+      <arrow> The source transmitter must still be loaded and powered
+      <arrow> No world is hard-coded, leaving future dimensions compatible
+
+  wireless_vault_terminal:
+    name: "Wireless Vault Terminal"
+    lore: |-
+      <arrow> Portable access to one bound Vault Transmitter
+      <arrow> Sneak-right-click a transmitter to bind this terminal
+      <arrow> Right-click to open the remote Vault inventory
+      <arrow> Normal antenna range applies in the same world
+      <arrow> Cross-dimensional access requires a Dimensional Vault Antenna
+      <arrow> Never force-loads the bound transmitter or storage chunks
 
   vault_power_base:
     name: "Vault Power Base"
@@ -67,7 +101,7 @@ item:
       <arrow> Automatically stops when the Vault column loses power
 
   basic_vault_cell:
-    name: "Basic Vault Cell"
+    name: "Basic Powered Vault Cell"
     lore: |-
       <arrow> Single-item high-capacity physical storage
       <arrow> Hold an item and register exactly 1 from the GUI
@@ -76,13 +110,22 @@ item:
       <arrow> Placement is limited to a 6-cell column above a Vault Power Base
       <arrow> Breaking the Vault keeps its stored state inside the dropped cell
       <arrow> Stable endpoint UUID/revision travels with the portable Vault
-      <arrow> Stable endpoint UUID/revision travels with the portable Vault
 
   powered_vault_cell:
-    name: "Powered Vault Cell"
+    name: "Advanced Powered Vault Cell"
     lore: |-
       <arrow> Higher-capacity single-item Vault storage
+      <arrow> Quick Withdraw: left = 1, right = 64, shift-left = fill inventory
       <arrow> Uses the ominous Vault visual for the advanced tier
       <arrow> Uses the same Vault Power Base and rear Cargo Node layout
       <arrow> Must be in a powered column of no more than 6 Vault Cells
       <arrow> Breaking the Vault keeps its stored state inside the dropped cell
+
+  test_power_source:
+    name: "Vault Test Power Source"
+    lore: |-
+      <arrow> Administrator testing block: constant 1 MW Rebar power
+      <arrow> Connect Rebar electrical wiring to any of the six sides
+      <arrow> Works day and night, in any dimension, without fuel
+      <arrow> Obtain with /vaultworks testpower; no survival recipe
+      <arrow> Remove after testing and connect your normal power supply

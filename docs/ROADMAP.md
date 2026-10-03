@@ -1,8 +1,8 @@
 # VaultWorks Roadmap
 
-VaultWorks 0.2.0-SNAPSHOT has a playable **portable bulk-storage and powered-column foundation**.
+VaultWorks 0.3.0-rc.1 is the **storage-network release line**.
 
-Implemented: single-item Basic and Powered Vault Cells, portable stored state on the dropped cell item, floating registered-item displays, a six-high Vault Power Base column, rear Vault Cargo Nodes, power-gated controls/cargo, safe overflow-purge toggles, and recovery of the earlier 54-slot prototype data. Distributed indexing, reservations and request crafting remain future work and require the transaction/recovery contracts below.
+Implemented: portable Basic Powered and Advanced Powered Vault Cells, persistent endpoint UUID/revision tracking, six-high powered columns, rear cargo, bounded explicit indexing, searchable transactional Vault Terminals, loaded-only powered transmitters, same-world antennas, Dimensional Vault Antennas, and bindable Wireless Vault Terminals. Request crafting remains future work and does not block the storage-network release.
 
 ## Phase 0 — Architecture contract
 
@@ -32,22 +32,15 @@ Implemented foundation:
 - overflow handling that is safe-by-default;
 - legacy prototype recovery.
 
-Implemented endpoint invariants:
+Phase 1 release work now includes:
 
-- stable endpoint UUID persisted through break/re-place;
-- monotonic endpoint revision across storage/control mutations;
-- loaded duplicate-ID detection;
-- persisted hard lock for duplicate identities;
-- conflicted endpoints excluded from accessible network stock.
+- stable portable endpoint UUIDs;
+- duplicate loaded-ID detection with persistent mutation locks; only empty conflicted cells may be explicitly re-keyed;
+- monotonic storage revisions for manual, terminal and cargo mutations;
+- portable break/replace state;
+- legacy prototype recovery.
 
-Still to add before Phase 1 is considered complete:
-
-- administrator Doctor diagnostics/recovery workflow for filled identity conflicts;
-- broader restart and crash-window regression tests.
-
-Empty conflicted Vaults with no recovery stacks can already be safely re-keyed from their GUI.
-
-No indexed network yet.
+A durable cross-storage journal and abrupt-termination recovery tests remain required before advertising crash-atomic transfers. Version 0.3.0-rc.1 is a candidate for normal-operation and orderly-restart testing.
 
 Primary goal: prove storage cannot dupe or lose items across restart or physical relocation.
 
@@ -61,13 +54,15 @@ Implemented foundation:
 - online/offline column counts;
 - physical stored/capacity totals and distinct item-type counts.
 
-Still to implement:
+Implemented for the storage release:
 
-- stable endpoint registration/UUIDs;
-- change-driven cached summaries;
-- explicit unloaded-endpoint metadata;
-- network split/merge reconciliation;
-- searchable item index used by the future terminal.
+- loaded endpoint registration/UUIDs;
+- bounded loaded topology traversal;
+- exact-item summaries used by the terminal;
+- explicit online/accessibility accounting;
+- network split/merge rebuilding from physical storage.
+
+Future optimization can add change-driven cached summaries and richer unloaded-endpoint metadata without changing physical ownership.
 
 Primary goal: the index can be deleted/rebuilt without losing items.
 
@@ -89,28 +84,33 @@ Implemented search:
 - `#online` / `#offline` availability filters;
 - one captured topology snapshot per search session, with no per-keystroke rescans.
 
-Implemented transaction groundwork:
-
-- bounded source selection from the current explicit topology;
-- endpoint UUID + expected revision captured per source;
-- commit-time topology/revision/amount revalidation;
-- deterministic smallest-source-first allocation.
-
-Implemented delivery groundwork:
-
-- five-slot persisted Terminal claim buffer;
-- player-output-only slot policy;
-- safe buffer restore through Rebar virtual-inventory persistence;
-- safe claim-content drops when a Terminal is broken.
-
-Still to implement:
+Implemented:
 
 - transactional withdrawal commit into the claim buffer;
-- write-ahead/recovery protocol for crash-safe source-to-buffer commit;
 - transactional deposit;
-- concurrent-use, restart and double-click anti-overdraw tests.
+- transactional withdrawal;
+- live endpoint revalidation at commit time;
+- truncated-network mutation rejection;
+- deterministic inventory/storage compensation on shortfall;
+- one-scan Deposit Inventory behavior;
+- no automatic empty-cell registration and no terminal overflow purge.
 
-Primary goal: reliable player access under concurrent use.
+Primary goal: reliable player access while physical Vault Cells remain authoritative.
+
+## Phase 3.5 — Wireless access
+
+Implemented for 0.3.x:
+
+- powered Vault Transmitter that reuses the normal Terminal GUI/transaction path;
+- bound portable Wireless Vault Terminal;
+- configurable same-world base range;
+- adjacent Vault Antenna range upgrade;
+- adjacent Dimensional Vault Antenna for cross-world access;
+- no hard-coded world names;
+- loaded-only transmitter registry with no chunk loading;
+- duplicate transmitter-id detection and re-keying.
+
+Future quality-of-life work may add favorites, named transmitter labels, or more antenna tiers without changing the storage transaction model.
 
 ## Phase 4 — Interfaces
 
@@ -252,4 +252,4 @@ A serious public build should eventually require automated tests for:
 - output-blocked recovery;
 - no duplicate output after crash-window replay.
 
-The first playable release should prefer fewer features with strong invariants over a broad but unsafe storage network.
+The 0.3 storage-network release should ship only after its branch is green, main passes the live Paper/Rebar smoke gate and `/vaultworks doctor`, and the raw release JAR is byte-for-byte tied to that tested build. Fabrication will remain separate until its reservation/crash-window invariants are equally strong.

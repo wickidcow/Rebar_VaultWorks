@@ -184,7 +184,7 @@ Withdrawal still validates against live physical storage.
 
 ## Implemented withdrawal planning boundary
 
-VaultWorks now has a revision-aware withdrawal planner, but it still does **not** commit Terminal item movement.
+VaultWorks has revision-aware withdrawal planning and a synchronous Terminal commit path into a persisted claim buffer.
 
 A plan is built from the currently connected and operational physical Vault Cells. Each source entry records:
 
@@ -192,11 +192,11 @@ A plan is built from the currently connected and operational physical Vault Cell
 - expected endpoint revision;
 - amount planned from that endpoint.
 
-Before a future commit, VaultWorks re-walks the current explicit topology and resolves each source through the loaded endpoint registry. The plan is rejected if a source is no longer connected/accessible, if its revision changed, or if its stored amount is now too low.
+Before a commit, VaultWorks re-walks the current explicit topology and resolves each source through the loaded endpoint registry. The plan is rejected if a source is no longer connected/accessible, if its revision changed, or if its stored amount is now too low.
 
 This means a Terminal page or search snapshot is never authorization to mutate storage. Cargo movement, player access, power loss, block movement, identity conflicts, or any other storage mutation can invalidate the old plan.
 
-The next commit layer should deliver into a persisted Terminal-owned claim buffer rather than directly into a player's inventory. That keeps the authoritative storage-to-storage handoff recoverable before external player inventory delivery is attempted.
+The commit layer delivers into the persisted Terminal claim buffer. A write-ahead journal is not implemented; cross-chunk saves and external player inventory saves must not be described as crash-atomic.
 
 ## Implemented Terminal claim buffer
 
@@ -207,10 +207,10 @@ Claim-buffer invariants:
 - it is persisted/restored by Rebar with the Terminal block;
 - players may remove items but cannot add or swap items into it;
 - breaking the Terminal drops any remaining claim contents through Rebar's standard virtual-inventory break handling;
-- search/browse snapshots still do not mutate or populate the buffer;
-- network withdrawal is not yet enabled.
+- item clicks re-resolve live storage before populating the buffer;
+- network withdrawal is enabled; full buffers leave source storage untouched.
 
-This is intentionally the destination side of the future commit protocol. A future withdrawal should move authoritative physical Vault stock into this persisted plugin-owned buffer before the player takes possession, rather than removing from Vault storage and directly calling the player's inventory API.
+The plugin-owned buffer is the withdrawal destination. Normal persistence is provided by Rebar. Durable recovery for interrupted multi-owner writes remains future work.
 
 ## Transaction model
 
@@ -511,3 +511,77 @@ VaultWorks should not implement an electricity system.
 If crafting/storage devices eventually consume Rebar electricity, that should use the released Rebar electricity API after it is available in the project's chosen dependency line.
 
 Energy consumption is a cost/requirement of VaultWorks devices, not ownership of electrical simulation.
+
+## Implemented 0.3 storage transaction boundary
+
+Player-facing Vault Terminal mutations never edit a cached index summary.
+
+Each operation:
+
+1. traverses the explicit loaded Vault topology once;
+2. rejects mutation if the configured topology bound truncates that traversal;
+3. considers only loaded, powered physical Vault Cells;
+4. matches full Bukkit/Rebar item identity using `ItemStack#isSimilar`;
+5. revalidates capacity/amount immediately before each cell mutation;
+6. commits on the primary server thread;
+7. compensates an unexpected inventory/storage shortfall before returning.
+
+Terminal deposits deliberately ignore a cell's overflow-purge setting. A player remote-deposit must never destroy items just because the target cell has cargo overflow purge enabled.
+
+Empty cells are also not auto-registered by network deposit. Registration remains an explicit storage-layout decision.
+
+## Endpoint identity and revisions
+
+Every Vault Cell now carries:
+
+- a persistent endpoint UUID;
+- a monotonic storage revision.
+
+Both values travel with the portable dropped Vault item.
+
+Loaded endpoints are registered in memory. Duplicate UUIDs persistently lock every loaded copy; removing one copy never unlocks the other. Filled copies are never automatically re-keyed. Healthy empty portable cells may omit their endpoint ID so matching empty items can stack; each placement then receives a fresh identity.
+
+The revision increments for terminal, manual, cargo and recovery mutations. It is intended to support future change-driven cached indexing without making a cache authoritative.
+
+## Wireless access model
+
+Wireless access is an alternate route to the same Vault Terminal implementation, not a second inventory system.
+
+A Vault Transmitter:
+
+- is physically attached to the normal explicit Vault Link topology;
+- consumes Rebar electricity;
+- registers only while its block is loaded;
+- exposes the same terminal search/transaction GUI as a wired Vault Terminal.
+
+A Wireless Vault Terminal item stores only the UUID of its bound transmitter.
+
+Resolution is loaded-only:
+
+```text
+Wireless Terminal
+      |
+      | transmitter UUID
+      v
+Loaded Transmitter Registry
+      |
+      v
+Normal Vault topology scan
+      |
+      v
+Physical Vault Cells
+```
+
+Same-world access is range-limited. An adjacent Vault Antenna increases that range.
+
+Cross-world/dimensional access requires an adjacent Dimensional Vault Antenna and the configured cross-dimension permission. No world name is persisted or special-cased, so newly added worlds can participate without schema migration.
+
+If the transmitter or source network is unloaded, remote access fails closed. VaultWorks never force-loads it.
+
+## Destructive controls
+
+The five-step deletion sequence is per player, bound to endpoint UUID and revision, expires after 30 seconds, and is invalidated by inventory close. Only the next confirmation is revealed. The final server-thread action consumes the token before clearing contents and registration. Filled identity conflicts cannot use this path to bypass the conflict lock.
+
+## Test power
+
+The administrator-only Test Power Source uses Rebar producer nodes and supplies 1 MW. It has no survival recipe and does not bypass consumer power checks.

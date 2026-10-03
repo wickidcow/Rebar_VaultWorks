@@ -43,7 +43,7 @@ Built from Memory Wafers and durable materials.
 
 Goal: solve one-room storage without autocrafting.
 
-Planned content:
+Implemented content:
 
 ### Vault Power Base
 
@@ -55,7 +55,7 @@ Design intent:
 - powers a contiguous vertical stack of up to six Vault Cells;
 - makes power state visually obvious without exposing wire ports on every cell.
 
-### Basic Vault Cell
+### Basic Powered Vault Cell
 
 Single-item bulk physical storage.
 
@@ -87,31 +87,41 @@ Search, deposit, and withdraw from the attached indexed storage.
 
 At this tier there is no request crafting.
 
-## Tier 2 — Dense Storage
+## Tier 2 — Dense Storage and Wireless Access
 
-Goal: larger bases and more useful network interfaces.
+Goal: larger bases plus practical access away from the storage room.
 
 ### Dense Lattice
 
 An upgraded lattice component.
 
-### Powered Vault Cell
+### Advanced Powered Vault Cell
 
 Higher bulk capacity using the same one-item physical ownership model and the advanced ominous-Vault visual. It still uses the shared Vault Power Base and rear Cargo Node layout.
 
-### Import Interface
+### Vault Transmitter
 
-Accepts items from an external inventory/logistic path and inserts them into VaultWorks.
+Powered access point attached to normal Vault Link topology.
 
-### Export Interface
+It deliberately reuses the normal Vault Terminal inventory path rather than creating a second wireless-storage implementation.
 
-Exports a configured item or filtered set from VaultWorks.
+### Wireless Vault Terminal
 
-### Stock Interface
+Portable player terminal.
 
-Exposes a configured item count/capacity state for integrations.
+Sneak-right-click a Vault Transmitter to bind it, then right-click the portable terminal to use the same search/deposit/withdraw interface remotely.
 
-This is a natural optional bridge to GridWorks later.
+### Vault Antenna
+
+Adjacent transmitter upgrade for longer same-world range.
+
+The source transmitter must remain loaded and powered. Wireless access never chunk-loads it.
+
+### Future interfaces
+
+Import, export, and stock interfaces remain useful future additions. Machine I/O is already available per cell through the Vault Cargo Node, so these interfaces do not block the 0.3 storage-network release.
+
+A Stock Interface is a natural optional bridge to GridWorks later.
 
 ## Tier 3 — Pattern Crafting
 
@@ -173,6 +183,12 @@ Very high physical cell capacity while preserving the same cell/index architectu
 
 More concurrency or larger request queue.
 
+### Dimensional Vault Antenna
+
+Endgame wireless upgrade that permits a bound Wireless Vault Terminal to reach its loaded, powered transmitter from another world/dimension.
+
+No world name is hard-coded, so newly added worlds can use the same rule without changing existing Vault data.
+
 ### Advanced Terminal
 
 Potential quality-of-life features:
@@ -232,6 +248,8 @@ Memory Wafer
 Storage Lattice
     |
 Basic Cell / Index / Terminal
+    |
+Transmitter / Wireless Terminal / Antenna
     |
 Dense Lattice
     |

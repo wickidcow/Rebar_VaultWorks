@@ -32,6 +32,37 @@ final class VaultNetworkScanner {
         return scanView(index).snapshot();
     }
 
+    static VaultNetworkCells scanAccessibleCells(RebarBlock root) {
+        Topology topology = collectTopology(root);
+        List<BasicVaultCell> cells = new ArrayList<>();
+
+        for (VaultPowerBase base : topology.bases()) {
+            if (!base.isOnline()) {
+                continue;
+            }
+
+            for (int height = 1; height <= BasicVaultCell.MAX_COLUMN_HEIGHT; height++) {
+                BasicVaultCell cell;
+                try {
+                    cell = BlockStorage.getAs(
+                            BasicVaultCell.class,
+                            base.getBlock().getRelative(BlockFace.UP, height)
+                    );
+                } catch (IllegalArgumentException ignored) {
+                    break;
+                }
+
+                if (cell == null) {
+                    break;
+                }
+                if (cell.isOperational() && !cell.hasLegacyRecovery()
+                        && VaultEndpointRegistry.resolveUnique(cell.getEndpointId()) == cell) cells.add(cell);
+            }
+        }
+
+        return new VaultNetworkCells(cells, topology.truncated());
+    }
+
     static VaultNetworkView scanView(RebarBlock root) {
         Topology topology = collectTopology(root);
 
@@ -133,8 +164,7 @@ final class VaultNetworkScanner {
                 topology.truncated()
         );
 
-        int configuredItems = VaultWorks.instance().getConfig().getInt("terminal.max-item-types", 4096);
-        int maxItems = Math.max(128, Math.min(configuredItems, 16_384));
+        int maxItems = VaultWorks.instance().storagePolicy().maxTerminalItemTypes();
         boolean itemsTruncated = items.size() > maxItems;
         List<VaultItemSummary> displayedItems = itemsTruncated
                 ? List.copyOf(items.subList(0, maxItems))
@@ -147,6 +177,7 @@ final class VaultNetworkScanner {
         VaultItemIdentity requestedIdentity = VaultItemIdentity.of(requestedItem);
         Topology topology = collectTopology(root);
         List<BasicVaultCell> matches = new ArrayList<>();
+        if (topology.truncated()) return List.of();
 
         for (VaultPowerBase base : topology.bases()) {
             for (int height = 1; height <= BasicVaultCell.MAX_COLUMN_HEIGHT; height++) {
@@ -177,8 +208,12 @@ final class VaultNetworkScanner {
     }
 
     private static Topology collectTopology(RebarBlock root) {
-        int configuredMax = VaultWorks.instance().getConfig().getInt("index.max-network-nodes", 4096);
-        int maxNodes = Math.max(32, Math.min(configuredMax, 65_536));
+        int maxNodes = VaultWorks.instance().storagePolicy().maxNetworkNodes();
+        try {
+            if (BlockStorage.get(root.getBlock()) != root) return new Topology(0, Set.of(), false);
+        } catch (IllegalArgumentException unavailable) {
+            return new Topology(0, Set.of(), false);
+        }
 
         Queue<Block> queue = new ArrayDeque<>();
         Set<NodePos> visited = new HashSet<>();
