@@ -243,6 +243,11 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         return identityConflict;
     }
 
+    public boolean hasRecoveryLock() {
+        return VaultWorks.instance().recoveryStore().locked(endpointId)
+                || VaultWorks.instance().recoveryStore().locked(VaultTransferRollback.key(getBlock()));
+    }
+
     void flagIdentityConflict() {
         if (!identityConflict) {
             identityConflict = true;
@@ -287,7 +292,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     public boolean isOperational() {
-        if (identityConflict) {
+        if (identityConflict || hasRecoveryLock()) {
             return false;
         }
         VaultPowerBase base = getPowerBase();
@@ -315,6 +320,10 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             }
         } catch (IllegalArgumentException unavailable) {
             player.closeInventory();
+            return false;
+        }
+        if (hasRecoveryLock()) {
+            player.sendMessage(Component.text("Vault locked after a failed transfer. An administrator must review /vaultworks recovery."));
             return false;
         }
         if (identityConflict) {
@@ -388,6 +397,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     void applyCargoAmount(ItemStack stack, long amount) {
+        if (!isOperational() || hasLegacyRecovery() || storedItem == null || amount < 0L
+                || (amount > 0L && (stack == null || !storedItem.isSimilar(stack)))) return;
         long previousAmount = storedAmount;
         storedAmount = VaultStorageMath.applyProposedAmount(
                 storedAmount,
@@ -533,7 +544,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
 
         ItemStack drop = getDefaultItem().createNewItemStack();
-        boolean stackableEmpty = storedAmount == 0L && legacyRecovery.isEmpty() && !identityConflict;
+        boolean stackableEmpty = storedAmount == 0L && legacyRecovery.isEmpty() && !identityConflict && !hasRecoveryLock();
         boolean defaultPurge = VaultWorks.instance().getConfig().getBoolean("storage.overflow-purge-default", false);
         if (stackableEmpty && storedItem == null && purgeOverflow == defaultPurge) {
             return drop;
@@ -564,10 +575,16 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         if (identityConflict) {
             lore.add(Component.text("LOCKED: duplicate endpoint identity"));
         }
+        if (hasRecoveryLock()) lore.add(Component.text("LOCKED: transfer recovery requires administrator review"));
         if (!legacyRecovery.isEmpty()) {
             lore.add(Component.text("Legacy recovery stacks: " + legacyRecovery.size()));
         }
         return ItemStackBuilder.of(drop).lore(lore).build();
+    }
+
+    @Override
+    public boolean onPreBlockBreak(@NotNull BlockBreakContext context) {
+        return !hasRecoveryLock();
     }
 
     @Override
@@ -650,14 +667,14 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     @Override
     public @NotNull Component getGuiTitle() {
         return Component.text("Basic Powered Vault Cell — "
-                + (identityConflict ? "LOCKED / ID CONFLICT" : (isOperational() ? "Online" : "Offline")));
+                + (hasRecoveryLock() ? "LOCKED / RECOVERY" : identityConflict ? "LOCKED / ID CONFLICT" : (isOperational() ? "Online" : "Offline")));
     }
 
     @Override
     public WailaDisplay getWaila(@NotNull Player player) {
         boolean online = isOperational();
         WailaDisplay display = WailaDisplay.of(this, player)
-                .add(Component.text(identityConflict ? "LOCKED-ID-CONFLICT" : (online ? "ONLINE" : "OFFLINE")))
+                .add(Component.text(hasRecoveryLock() ? "LOCKED-RECOVERY" : identityConflict ? "LOCKED-ID-CONFLICT" : (online ? "ONLINE" : "OFFLINE")))
                 .add(Component.text("rev " + endpointRevision));
 
         if (storedItem == null) {
@@ -693,12 +710,14 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
 
         ItemStack keyItem = hand.asOne();
-        if (hand.getAmount() <= 1) {
-            player.getInventory().setItemInMainHand(null);
-        } else {
-            hand.setAmount(hand.getAmount() - 1);
+        VaultTransferRollback recovery = new VaultTransferRollback(this, player.getInventory(), List.of(this), "cell registration");
+        try {
+            player.getInventory().setItemInMainHand(hand.getAmount() <= 1 ? null : hand.asQuantity(hand.getAmount() - 1));
+            register(keyItem);
+        } catch (RuntimeException failure) {
+            recoverTransfer(player, recovery, failure);
+            return false;
         }
-        register(keyItem);
         player.sendMessage(Component.text("Registered ").append(keyItem.effectiveName())
                 .append(Component.text(" using 1 item.")));
         return true;
@@ -722,36 +741,41 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         long capacity = getCapacity();
         long accepted = 0L;
         long voided = 0L;
+        VaultTransferRollback recovery = new VaultTransferRollback(this, inventory, List.of(this), "cell deposit");
+        try {
+            for (int slot = 0; slot < storageSlots; slot++) {
+                ItemStack stack = inventory.getItem(slot);
+                if (stack == null || stack.isEmpty() || !storedItem.isSimilar(stack)) {
+                    continue;
+                }
 
-        for (int slot = 0; slot < storageSlots; slot++) {
-            ItemStack stack = inventory.getItem(slot);
-            if (stack == null || stack.isEmpty() || !storedItem.isSimilar(stack)) {
-                continue;
+                long free = Math.max(0L, capacity - storedAmount);
+                int toStore = (int) Math.min((long) stack.getAmount(), free);
+                int toRemove = purgeOverflow ? stack.getAmount() : toStore;
+
+                if (toRemove <= 0) {
+                    continue;
+                }
+
+                accepted += toStore;
+                voided += toRemove - toStore;
+                storedAmount += toStore;
+
+                if (toRemove >= stack.getAmount()) {
+                    inventory.setItem(slot, null);
+                } else {
+                    inventory.setItem(slot, stack.asQuantity(stack.getAmount() - toRemove));
+                }
             }
 
-            long free = Math.max(0L, capacity - storedAmount);
-            int toStore = (int) Math.min((long) stack.getAmount(), free);
-            int toRemove = purgeOverflow ? stack.getAmount() : toStore;
-
-            if (toRemove <= 0) {
-                continue;
+            if (accepted > 0L || voided > 0L) {
+                touchRevision();
             }
-
-            accepted += toStore;
-            voided += toRemove - toStore;
-            storedAmount += toStore;
-
-            if (toRemove >= stack.getAmount()) {
-                inventory.setItem(slot, null);
-            } else {
-                stack.setAmount(stack.getAmount() - toRemove);
-            }
+            refreshGuiItems();
+        } catch (RuntimeException failure) {
+            recoverTransfer(player, recovery, failure);
+            return;
         }
-
-        if (accepted > 0L || voided > 0L) {
-            touchRevision();
-        }
-        refreshGuiItems();
         if (accepted > 0 || voided > 0) {
             player.sendMessage(Component.text("Deposited " + format(accepted)
                     + (voided > 0 ? " and purged " + format(voided) + " overflow." : ".")));
@@ -781,8 +805,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
         long target = Math.min(requested, Math.min(storedAmount,
                 VaultStorageTransaction.playerCapacity(player.getInventory(), storedItem)));
-        long before = storedAmount;
-        ItemStack[] inventoryBefore = player.getInventory().getStorageContents();
+        VaultTransferRollback recovery = new VaultTransferRollback(this, player.getInventory(), List.of(this), "cell withdrawal");
         try {
             storedAmount -= target;
             long delivered = VaultStorageTransaction.deliver(player.getInventory(), storedItem, target);
@@ -790,9 +813,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             if (delivered > 0L) touchRevision();
             else player.sendMessage(Component.text("Your inventory is full."));
         } catch (RuntimeException failure) {
-            player.getInventory().setStorageContents(inventoryBefore);
-            storedAmount = before;
-            throw failure;
+            recoverTransfer(player, recovery, failure);
+            return;
         }
         refreshGuiItems();
     }
@@ -840,27 +862,33 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
 
         boolean recoveryChanged = false;
-        Iterator<ItemStack> iterator = legacyRecovery.iterator();
-        while (iterator.hasNext()) {
-            ItemStack stack = iterator.next();
-            int beforeAmount = stack.getAmount();
-            Map<Integer, ItemStack> leftovers = player.getInventory().addItem(stack.clone());
-            if (leftovers.isEmpty()) {
-                iterator.remove();
-                recoveryChanged = true;
-                continue;
+        VaultTransferRollback recovery = new VaultTransferRollback(this, player.getInventory(), List.of(this), "legacy recovery");
+        try {
+            Iterator<ItemStack> iterator = legacyRecovery.iterator();
+            while (iterator.hasNext()) {
+                ItemStack stack = iterator.next();
+                int beforeAmount = stack.getAmount();
+                Map<Integer, ItemStack> leftovers = player.getInventory().addItem(stack.clone());
+                if (leftovers.isEmpty()) {
+                    iterator.remove();
+                    recoveryChanged = true;
+                    continue;
+                }
+
+                ItemStack remaining = leftovers.values().iterator().next();
+                stack.setAmount(remaining.getAmount());
+                recoveryChanged |= stack.getAmount() != beforeAmount;
+                break;
             }
 
-            ItemStack remaining = leftovers.values().iterator().next();
-            stack.setAmount(remaining.getAmount());
-            recoveryChanged |= stack.getAmount() != beforeAmount;
-            break;
+            if (recoveryChanged) {
+                touchRevision();
+            }
+            refreshGuiItems();
+        } catch (RuntimeException failure) {
+            recoverTransfer(player, recovery, failure);
+            return;
         }
-
-        if (recoveryChanged) {
-            touchRevision();
-        }
-        refreshGuiItems();
         if (legacyRecovery.isEmpty()) {
             player.sendMessage(Component.text("Legacy Vault contents fully recovered."));
         } else {
@@ -870,6 +898,10 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     protected void rekeyEmptyIdentity(Player player) {
+        if (hasRecoveryLock()) {
+            player.sendMessage(Component.text("Transfer recovery locks cannot be cleared by changing the endpoint identity."));
+            return;
+        }
         if (!identityConflict) {
             player.sendMessage(Component.text("This Vault endpoint identity is healthy."));
             return;
@@ -900,6 +932,13 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         ));
     }
 
+    private void recoverTransfer(Player player, VaultTransferRollback recovery, RuntimeException failure) {
+        recovery.recover(failure);
+        player.sendMessage(Component.text(hasRecoveryLock()
+                ? "Transfer failed and needs administrator review. Contents were recorded; run /vaultworks recovery."
+                : "Transfer failed. Your inventory and Vault contents were restored."));
+    }
+
     protected static String format(long value) {
         return String.format(Locale.US, "%,d", value);
     }
@@ -918,14 +957,14 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             boolean online = isOperational();
             return ItemStackBuilder.of(online ? Material.COPPER_BULB : Material.EXPOSED_COPPER_BULB)
                     .name(Component.text("Vault Status — "
-                            + (identityConflict ? "LOCKED / ID CONFLICT" : (online ? "ONLINE" : "OFFLINE"))))
+                            + (hasRecoveryLock() ? "LOCKED / RECOVERY" : identityConflict ? "LOCKED / ID CONFLICT" : (online ? "ONLINE" : "OFFLINE"))))
                     .lore(
                             Component.text("Stored: " + format(storedAmount) + " / " + format(capacity)),
                             Component.text("Used: " + percent + "%"),
                             Component.text("Column limit: " + MAX_COLUMN_HEIGHT + " Vault Cells per Power Base"),
                             Component.text("Endpoint: " + endpointId.toString().substring(0, 8)
                                     + " / rev " + endpointRevision),
-                            Component.text(identityConflict
+                            Component.text(hasRecoveryLock() ? "LOCKED: transfer recovery requires review." : identityConflict
                                     ? "LOCKED: duplicate endpoint identity detected."
                                     : (online
                                             ? "Powered by the Vault Power Base below."

@@ -67,6 +67,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     check(count(restoredTerminal.getVirtualInventories().get("claim").asBukkitInventory(), Material.DIAMOND)
                             == getConfig().getInt("expected-claim-diamonds"), "claim buffer survives clean restart");
                 }
+                verifyRecoveryRestart();
                 getConfig().set("expected-cell-uuid", null);
                 saveConfig();
                 runChecks();
@@ -74,6 +75,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     try {
                         check(liveBase.isOnline(), "test source supplies real Rebar network power");
                         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "vaultworks doctor");
+                        createFailedRecoveryCheckpoint();
                         getLogger().info("VAULTWORKS RUNTIME PASS: " + checks + " checks");
                         Files.writeString(getDataFolder().toPath().resolve("result.txt"), "PASS " + checks);
                     } catch (Throwable failure) {
@@ -141,6 +143,8 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         });
         try { callStatic(tx,"withdraw",terminal,failedDestination,new ItemStack(Material.DIAMOND),64L); throw new AssertionError("expected delivery failure"); }
         catch(RuntimeException expected) { check(cell.getStoredAmount()==beforeFailure && count(failedBacking,Material.DIAMOND)==0,"failed delivery restores source without duplicated items"); }
+        check(((List<?>)call(call(VaultWorks.instance(),"recoveryStore"),"incidents")).isEmpty(),
+                "successful compensation clears its recovery record");
         check((long)call(moved,"moved") == 64 && count(claim.asBukkitInventory(),Material.DIAMOND) == 64, "network withdrawal goes to persisted claim buffer");
         long before = cell.getStoredAmount();
         callStatic(tx,"withdraw",terminal,claim.asBukkitInventory(),new ItemStack(Material.DIAMOND),Long.MAX_VALUE);
@@ -269,6 +273,8 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         check(emptyA.getDropItem(new BlockBreakContext.PluginBreak(emptyA.getBlock())).getMaxStackSize()==1,"filled cells stay unstackable");
         BlockStorage.breakBlock(emptyB);BlockStorage.breakBlock(emptyA);BlockStorage.breakBlock(emptyBase);
 
+        verifyManualCompensation();
+
         VaultTestPowerSource source = (VaultTestPowerSource)place("test_power_source",6,100,2);
         check(source.getPowerProduced()==1_000_000D,"test source provides 1 MW");
         check(source.getDefaultItem()!=null && base.getDefaultItem()!=null,"Rebar block drop items are registered");
@@ -283,6 +289,150 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         getConfig().set("expected-cell-uuid",cell.getEndpointId().toString());
         getConfig().set("expected-cell-amount",12345L);
         getConfig().set("expected-claim-diamonds",320);
+        saveConfig();
+    }
+
+    private void verifyManualCompensation() throws Exception {
+        VaultPowerBase base=(VaultPowerBase)place("vault_power_base",8,100,2);
+        BasicVaultCell cell=(BasicVaultCell)place("basic_vault_cell",8,101,2);
+        power(base,true);
+        playerInventory.clear();
+        playerInventory.setItem(0,new ItemStack(Material.DIAMOND,12));
+        Player registrationFailure=playerWithFault("setItemInMainHand",1);
+        check(!(boolean)call(cell,"registerFromMainHand",registrationFailure),"failed registration is reported");
+        check(cell.getStoredItem()==null && cell.getStoredAmount()==0 && count(playerInventory,Material.DIAMOND)==12,
+                "failed registration restores both the hand and unregistered cell");
+        call(cell,"setStoredState",new ItemStack(Material.DIAMOND),100L);
+        playerInventory.setItem(1,new ItemStack(Material.DIAMOND,20));
+        Player depositFailure=playerWithFault("setItem",2);
+        call(cell,"quickDeposit",depositFailure);
+        check(cell.getStoredAmount()==100 && playerInventory.getItem(0).getAmount()==12
+                && playerInventory.getItem(1).getAmount()==20,"partial quick deposit restores every inventory slot and cell");
+        playerInventory.clear();
+        playerInventory.setItem(0,new ItemStack(Material.DIAMOND,60));
+        Player withdrawalFailure=playerWithFault("setItem",2);
+        call(cell,"withdraw",withdrawalFailure,64L);
+        check(cell.getStoredAmount()==100 && playerInventory.getItem(0).getAmount()==60
+                && count(playerInventory,Material.DIAMOND)==60,"partial quick withdrawal restores cloned original stacks");
+        playerInventory.clear();
+        call(cell,"setStoredState",new ItemStack(Material.DIAMOND),cell.getCapacity()-2);
+        playerInventory.setItem(0,new ItemStack(Material.DIAMOND,64));
+        call(cell,"quickDeposit",player);
+        check(cell.getStoredAmount()==cell.getCapacity() && count(playerInventory,Material.DIAMOND)==62,
+                "quick deposit keeps excess when purge is off");
+        call(cell,"togglePurge",player);
+        call(cell,"quickDeposit",player);
+        check(count(playerInventory,Material.DIAMOND)==0 && cell.getStoredAmount()==cell.getCapacity(),
+                "quick deposit purges only when explicitly enabled");
+        check(!cell.hasRecoveryLock() && ((List<?>)call(call(VaultWorks.instance(),"recoveryStore"),"incidents")).isEmpty(),
+                "successful manual compensation leaves no recovery locks");
+        BlockStorage.breakBlock(cell);BlockStorage.breakBlock(base);
+    }
+
+    private Player playerWithFault(String operation,int failOn) {
+        java.util.concurrent.atomic.AtomicInteger writes=new java.util.concurrent.atomic.AtomicInteger();
+        PlayerInventory faultInventory=(PlayerInventory)Proxy.newProxyInstance(getClassLoader(),new Class<?>[]{PlayerInventory.class},
+                (proxy,method,args)->{
+                    Object result=Proxy.getInvocationHandler(playerInventory).invoke(playerInventory,method,args);
+                    if(method.getName().equals(operation) && writes.incrementAndGet()==failOn)
+                        throw new IllegalStateException("simulated partial "+operation+" failure");
+                    return result;
+                });
+        return (Player)Proxy.newProxyInstance(getClassLoader(),new Class<?>[]{Player.class},(proxy,method,args)->
+                method.getName().equals("getInventory")?faultInventory:Proxy.getInvocationHandler(player).invoke(player,method,args));
+    }
+
+    private void verifyRecoveryRestart() throws Exception {
+        if (!getConfig().contains("recovery-incident")) return;
+        BasicVaultCell first = (BasicVaultCell) BlockStorage.get(world.getBlockAt(8,101,2));
+        BasicVaultCell second = (BasicVaultCell) BlockStorage.get(world.getBlockAt(8,102,2));
+        VaultTerminal terminal = (VaultTerminal) BlockStorage.get(world.getBlockAt(9,100,2));
+        check(first.hasRecoveryLock() && second.hasRecoveryLock() && terminal.hasRecoveryLock(),
+                "failed transfer locks survive clean restart");
+        check(first.getStoredAmount()==64 && second.getStoredAmount()==64,
+                "all source compensation survives restart despite inventory restore failure");
+        check(!first.onPreBlockBreak(new BlockBreakContext.PluginBreak(first.getBlock())),
+                "restarted recovery cell cannot be broken");
+        Object store = call(VaultWorks.instance(),"recoveryStore");
+        check(((List<?>)call(store,"incidents")).size()==1,"one unresolved incident persists without replay");
+        // This opt-in disposable harness owns the exact record ID recorded in its config.
+        // Production exposes no unlock command: only the test resolves its synthetic fault.
+        UUID resolvedId=UUID.fromString(getConfig().getString("recovery-incident"));
+        call(store,"resolved",resolvedId);
+        Properties resolved=(Properties)callStatic(store.getClass(),"read",
+                VaultWorks.instance().getDataFolder().toPath().resolve("recovery").resolve(resolvedId+".incident"));
+        check(resolved.getProperty("state").equals("resolved"),
+                "resolved synthetic incident retains a closed audit record");
+        getConfig().set("recovery-incident",null);
+        saveConfig();
+    }
+
+    private void createFailedRecoveryCheckpoint() throws Exception {
+        VaultPowerBase base = (VaultPowerBase) place("vault_power_base",8,100,2);
+        BasicVaultCell first = (BasicVaultCell) place("basic_vault_cell",8,101,2);
+        BasicVaultCell second = (BasicVaultCell) place("basic_vault_cell",8,102,2);
+        VaultTerminal terminal = (VaultTerminal) place("vault_terminal",9,100,2);
+        power(base,true);
+        call(first,"setStoredState",new ItemStack(Material.EMERALD),64L);
+        call(second,"setStoredState",new ItemStack(Material.EMERALD),64L);
+        Inventory backing = Bukkit.createInventory(null,9);
+        java.util.concurrent.atomic.AtomicInteger writes = new java.util.concurrent.atomic.AtomicInteger();
+        Inventory failing = (Inventory) Proxy.newProxyInstance(getClassLoader(),new Class<?>[]{Inventory.class},(proxy,method,args)->{
+            if (method.getName().equals("setItem") && writes.incrementAndGet()==2)
+                throw new IllegalStateException("simulated partial delivery failure");
+            if (method.getName().equals("setStorageContents"))
+                throw new IllegalStateException("simulated rollback setter failure");
+            return method.invoke(backing,args);
+        });
+        Class<?> tx = Class.forName("io.github.wickidcow.vaultworks.VaultStorageTransaction",true,VaultWorks.class.getClassLoader());
+        try { callStatic(tx,"withdraw",terminal,failing,new ItemStack(Material.EMERALD),128L); throw new AssertionError("expected failure"); }
+        catch (RuntimeException expected) {
+            check(first.getStoredAmount()==64 && second.getStoredAmount()==64,
+                    "inventory rollback failure does not skip either source compensation");
+        }
+        check(count(backing,Material.EMERALD)==64,"partial failed destination remains available for incident review");
+        check(first.hasRecoveryLock() && second.hasRecoveryLock() && terminal.hasRecoveryLock(),
+                "failed rollback locks all participating cells and terminal");
+        check(!first.isOperational(),"recovery cell cannot power cargo access");
+        call(first,"applyCargoAmount",new ItemStack(Material.EMERALD),0L);
+        check(first.getStoredAmount()==64,"direct cargo setter cannot bypass recovery lock");
+        check(!terminal.onPreBlockBreak(new BlockBreakContext.PluginBreak(terminal.getBlock()))
+                && BlockStorage.breakBlock(first)==null,"breaking cannot bypass recovery lock");
+        Object blocked = callStatic(tx,"withdraw",terminal,backing,new ItemStack(Material.EMERALD),1L);
+        check(call(blocked,"status").toString().equals("RECOVERY_REQUIRED"),"terminal transfers reject unresolved recovery");
+        check(!(boolean)call(terminal,"canAccess",player),"claim access rejects unresolved recovery");
+        UUID idBefore=first.getEndpointId();
+        call(first,"rekeyEmptyIdentity",player);
+        check(first.getEndpointId().equals(idBefore),"re-key action cannot bypass recovery lock");
+        List<String> diagnostics=new ArrayList<>();
+        org.bukkit.command.CommandSender sender=(org.bukkit.command.CommandSender)Proxy.newProxyInstance(getClassLoader(),
+                new Class<?>[]{org.bukkit.command.CommandSender.class},(proxy,method,args)->{
+                    if(method.getName().equals("hasPermission")) return true;
+                    if(method.getName().equals("sendMessage") && args!=null) for(Object arg:args)
+                        if(arg instanceof net.kyori.adventure.text.Component component)
+                            diagnostics.add(net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(component));
+                    return defaultValue(method.getReturnType());
+                });
+        org.bukkit.command.PluginCommand command=Bukkit.getPluginCommand("vaultworks");
+        command.getExecutor().onCommand(sender,command,"vaultworks",new String[]{"doctor"});
+        check(diagnostics.stream().anyMatch(line->line.equals("VaultWorks Doctor result: FAIL")),
+                "doctor reports unresolved transfer recovery as failure");
+        command.getExecutor().onCommand(sender,command,"vaultworks",new String[]{"recovery"});
+        check(diagnostics.stream().anyMatch(line->line.contains("terminal withdrawal") && line.contains("cells=2")),
+                "recovery command identifies the affected transfer");
+        Object store=call(VaultWorks.instance(),"recoveryStore");
+        List<?> records=(List<?>)call(store,"incidents");
+        check(records.size()==1,"failed compensation preserves exactly one incident");
+        UUID id=(UUID)call(records.getFirst(),"id");
+        Class<?> storeType=store.getClass();
+        java.nio.file.Path recordPath=VaultWorks.instance().getDataFolder().toPath().resolve("recovery").resolve(id+".incident");
+        Properties evidence=(Properties)callStatic(storeType,"read",recordPath);
+        check(evidence.getProperty("inventory.before.0").equals("empty")
+                && !evidence.getProperty("inventory.observed.0").equals("empty"),
+                "recovery record preserves before and observed inventory contents");
+        check(ItemStack.deserializeBytes(Base64.getDecoder().decode(evidence.getProperty("cell.0.before.item"))).getType()==Material.EMERALD,
+                "recovery item bytes can be decoded without losing item identity");
+        getConfig().set("recovery-incident",id.toString());
         saveConfig();
     }
 

@@ -112,6 +112,8 @@ jobs:
           done
           grep -F 'PASS cell contents survive clean restart' "$RUNNER_TEMP/vaultworks-runtime-2.log"
           grep -F 'PASS claim buffer survives clean restart' "$RUNNER_TEMP/vaultworks-runtime-2.log"
+          grep -F 'PASS failed transfer locks survive clean restart' "$RUNNER_TEMP/vaultworks-runtime-2.log"
+          grep -F 'PASS all source compensation survives restart despite inventory restore failure' "$RUNNER_TEMP/vaultworks-runtime-2.log"
 
       - name: Record smoke-tested raw JAR digest
         id: tested-jar

@@ -1,6 +1,6 @@
 # VaultWorks Roadmap
 
-VaultWorks 0.3.0-rc.1 is the **storage-network release line**.
+VaultWorks 0.3.0-rc.2 is the **storage-network release line**.
 
 Implemented: portable Basic Powered and Advanced Powered Vault Cells, persistent endpoint UUID/revision tracking, six-high powered columns, rear cargo, bounded explicit indexing, searchable transactional Vault Terminals, loaded-only powered transmitters, same-world antennas, Dimensional Vault Antennas, and bindable Wireless Vault Terminals. Request crafting remains future work and does not block the storage-network release.
 
@@ -40,7 +40,7 @@ Phase 1 release work now includes:
 - portable break/replace state;
 - legacy prototype recovery.
 
-A durable cross-storage journal and abrupt-termination recovery tests remain required before advertising crash-atomic transfers. Version 0.3.0-rc.1 is a candidate for normal-operation and orderly-restart testing.
+Failed-compensation evidence, persistent recovery locks, and independent participant restoration are implemented in rc.2. A durable cross-storage journal and abrupt-termination recovery tests remain required before advertising crash-atomic transfers. Version 0.3.0-rc.2 is a candidate for normal-operation and orderly-restart testing.
 
 Primary goal: prove storage cannot dupe or lose items across restart or physical relocation.
 
