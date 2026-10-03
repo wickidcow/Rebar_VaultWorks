@@ -1,0 +1,5 @@
+name: VaultWorksRuntimeTests
+version: 1.0
+main: io.github.wickidcow.vaultworks.test.VaultWorksRuntimeTests
+api-version: '26.2'
+depend: [VaultWorks, Rebar]

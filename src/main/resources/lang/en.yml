@@ -44,7 +44,7 @@ item:
       <arrow> Search, deposit and withdraw across the connected Vault network
       <arrow> Paged view shows total and currently accessible stock
       <arrow> Live anvil search supports names, @namespace, #online and #offline
-      <arrow> Left = stack, right = 1, shift-left = fill inventory
+      <arrow> Left = stack, right = 1, shift-left = fill the claim buffer
       <arrow> Shift-right deposits matching items; top hopper deposits inventory
       <arrow> Every mutation revalidates loaded powered physical Vault Cells
 
@@ -101,7 +101,7 @@ item:
       <arrow> Automatically stops when the Vault column loses power
 
   basic_vault_cell:
-    name: "Basic Vault Cell"
+    name: "Basic Powered Vault Cell"
     lore: |-
       <arrow> Single-item high-capacity physical storage
       <arrow> Hold an item and register exactly 1 from the GUI
@@ -109,12 +109,23 @@ item:
       <arrow> Quick deposit/withdraw and optional overflow purge
       <arrow> Placement is limited to a 6-cell column above a Vault Power Base
       <arrow> Breaking the Vault keeps its stored state inside the dropped cell
+      <arrow> Stable endpoint UUID/revision travels with the portable Vault
 
   powered_vault_cell:
-    name: "Powered Vault Cell"
+    name: "Advanced Powered Vault Cell"
     lore: |-
       <arrow> Higher-capacity single-item Vault storage
+      <arrow> Quick Withdraw: left = 1, right = 64, shift-left = fill inventory
       <arrow> Uses the ominous Vault visual for the advanced tier
       <arrow> Uses the same Vault Power Base and rear Cargo Node layout
       <arrow> Must be in a powered column of no more than 6 Vault Cells
       <arrow> Breaking the Vault keeps its stored state inside the dropped cell
+
+  test_power_source:
+    name: "Vault Test Power Source"
+    lore: |-
+      <arrow> Administrator testing block: constant 1 MW Rebar power
+      <arrow> Connect Rebar electrical wiring to any of the six sides
+      <arrow> Works day and night, in any dimension, without fuel
+      <arrow> Obtain with /vaultworks testpower; no survival recipe
+      <arrow> Remove after testing and connect your normal power supply

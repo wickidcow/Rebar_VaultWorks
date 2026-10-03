@@ -24,11 +24,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class VaultWorks extends JavaPlugin implements RebarAddon {
     private static VaultWorks instance;
 
+    private final VaultDeleteConfirmations deleteConfirmations = new VaultDeleteConfirmations();
     private PowerPolicy policy;
     private StoragePolicy storagePolicy;
     private WirelessPolicy wirelessPolicy;
     private final VaultWirelessRegistry wirelessRegistry = new VaultWirelessRegistry();
-    private final VaultEndpointRegistry endpointRegistry = new VaultEndpointRegistry();
     private PageButton guide;
     private final List<NamespacedKey> recipes = new ArrayList<>();
 
@@ -38,16 +38,18 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
             Class.forName("io.github.pylonmc.rebar.block.interfaces.ElectricRebarBlock", false, getClassLoader());
         } catch (ClassNotFoundException exception) {
             throw new IllegalStateException(
-                    "VaultWorks requires electricity-enabled Rebar build 2064 (commit 5e34938). "
-                            + "Stable Rebar 0.43.0-26.2 does not include electricity.",
+                    "VaultWorks requires Rebar 0.44.2-26.2 or a compatible electricity-enabled build. "
+                            + "Install the matching Rebar server plugin for your Paper version.",
                     exception
             );
         }
 
+        VaultEndpointRegistry.clear();
         instance = this;
         VaultWorksContentCatalog.validate();
         java.util.Objects.requireNonNull(getCommand("vaultworks"))
                 .setExecutor(new VaultWorksCommand(this));
+        Bukkit.getPluginManager().registerEvents(deleteConfirmations, this);
         saveDefaultConfig();
         migrateConfig();
         double legacyWatts = getConfig().getDouble("power.watts", 48.0D);
@@ -70,6 +72,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         );
 
         registerWithRebar();
+        NamespacedKey testPower = new NamespacedKey(this, "test_power_source");
+        RebarItem.register(VaultTestPowerSourceItem.class,
+                ItemStackBuilder.rebar(Material.DAYLIGHT_DETECTOR, testPower).build(), testPower);
+        RebarBlock.register(testPower, Material.DAYLIGHT_DETECTOR, VaultTestPowerSource.class);
 
         NamespacedKey circuitKey = new NamespacedKey(this, "encoded_circuit");
         NamespacedKey waferKey = new NamespacedKey(this, "memory_wafer");
@@ -111,18 +117,31 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         ItemStack powerBaseItem = ItemStackBuilder.rebar(Material.COPPER_BULB, powerBaseKey).build();
         ItemStack cargoNodeItem = ItemStackBuilder.rebar(Material.CHISELED_COPPER, cargoNodeKey).build();
 
-        // Vault Cells are non-stackable because a broken cell may contain its complete portable state.
+        // Crafted empty cells stack. Filled/conflicted portable drops explicitly use a stack limit of one.
         ItemStack basicItem = ItemStackBuilder.rebar(Material.VAULT, basicKey)
-                .set(DataComponentTypes.MAX_STACK_SIZE, 1)
+                .set(DataComponentTypes.MAX_STACK_SIZE, 64)
                 .build();
         ItemStack poweredItem = ItemStackBuilder.rebar(Material.VAULT, poweredKey)
-                .set(DataComponentTypes.MAX_STACK_SIZE, 1)
+                .set(DataComponentTypes.MAX_STACK_SIZE, 64)
                 .build();
 
         RebarItem.register(RebarItem.class, circuitItem);
         RebarItem.register(RebarItem.class, waferItem);
         RebarItem.register(RebarItem.class, latticeItem);
 
+        RebarItem.register(RebarItem.class, linkItem, linkKey);
+        RebarItem.register(RebarItem.class, indexItem, indexKey);
+        RebarItem.register(RebarItem.class, terminalItem, terminalKey);
+        RebarItem.register(RebarItem.class, transmitterItem, transmitterKey);
+        RebarItem.register(RebarItem.class, antennaItem, antennaKey);
+        RebarItem.register(RebarItem.class, dimensionalAntennaItem, dimensionalAntennaKey);
+        RebarItem.register(WirelessVaultTerminalItem.class, wirelessTerminalItem);
+        RebarItem.register(RebarItem.class, powerBaseItem, powerBaseKey);
+        RebarItem.register(VaultCargoNodeItem.class, cargoNodeItem, cargoNodeKey);
+        RebarItem.register(VaultCellItem.class, basicItem, basicKey);
+        RebarItem.register(VaultCellItem.class, poweredItem, poweredKey);
+
+        // Rebar captures the default drop item when its block schema is registered.
         RebarBlock.register(linkKey, Material.COPPER_GRATE, VaultLinkCable.class);
         RebarBlock.register(indexKey, Material.LODESTONE, VaultIndex.class);
         RebarBlock.register(terminalKey, Material.ENDER_CHEST, VaultTerminal.class);
@@ -142,17 +161,6 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         RebarBlock.register(basicKey, Material.VAULT, BasicVaultCell.class);
         RebarBlock.register(poweredKey, Material.VAULT, PoweredVaultCell.class);
 
-        RebarItem.register(RebarItem.class, linkItem, linkKey);
-        RebarItem.register(RebarItem.class, indexItem, indexKey);
-        RebarItem.register(RebarItem.class, terminalItem, terminalKey);
-        RebarItem.register(RebarItem.class, transmitterItem, transmitterKey);
-        RebarItem.register(RebarItem.class, antennaItem, antennaKey);
-        RebarItem.register(RebarItem.class, dimensionalAntennaItem, dimensionalAntennaKey);
-        RebarItem.register(WirelessVaultTerminalItem.class, wirelessTerminalItem);
-        RebarItem.register(RebarItem.class, powerBaseItem, powerBaseKey);
-        RebarItem.register(VaultCargoNodeItem.class, cargoNodeItem, cargoNodeKey);
-        RebarItem.register(VaultCellItem.class, basicItem, basicKey);
-        RebarItem.register(VaultCellItem.class, poweredItem, poweredKey);
 
         recipe(new ShapedRecipe(circuitKey, circuitItem).shape("CRC", "RQR", "CRC")
                 .setIngredient('C', Material.COPPER_INGOT)
@@ -305,8 +313,9 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
             Bukkit.removeRecipe(key);
         }
         recipes.clear();
+        deleteConfirmations.clear();
         wirelessRegistry.clear();
-        endpointRegistry.clear();
+        VaultEndpointRegistry.clear();
         storagePolicy = null;
         wirelessPolicy = null;
         instance = null;
@@ -328,12 +337,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         return java.util.Objects.requireNonNull(wirelessPolicy, "Wireless policy is not loaded");
     }
 
+    VaultDeleteConfirmations deleteConfirmations() { return deleteConfirmations; }
+
     VaultWirelessRegistry wirelessRegistry() {
         return wirelessRegistry;
-    }
-
-    VaultEndpointRegistry endpointRegistry() {
-        return endpointRegistry;
     }
 
     int registeredRecipeCount() {

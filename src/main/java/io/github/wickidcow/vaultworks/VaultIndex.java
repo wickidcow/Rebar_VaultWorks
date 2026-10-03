@@ -101,6 +101,10 @@ public final class VaultIndex extends RebarBlock implements GuiRebarBlock {
                 lore.add(Component.text("Legacy recovery required: "
                         + snapshot.legacyRecoveryVaults() + " Vault(s)"));
             }
+            if (snapshot.identityConflictVaults() > 0) {
+                lore.add(Component.text("LOCKED identity conflicts: "
+                        + snapshot.identityConflictVaults() + " Vault(s)"));
+            }
             if (snapshot.truncated()) {
                 lore.add(Component.text("Network traversal hit the configured safety limit."));
             }

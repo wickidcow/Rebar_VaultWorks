@@ -1,8 +1,8 @@
 # VaultWorks Roadmap
 
-VaultWorks 0.3.0-SNAPSHOT is the **storage-network release line**.
+VaultWorks 0.3.0-rc.1 is the **storage-network release line**.
 
-Implemented: portable Basic and Powered Vault Cells, persistent endpoint UUID/revision tracking, six-high powered columns, rear cargo, bounded explicit indexing, searchable transactional Vault Terminals, loaded-only powered transmitters, same-world antennas, Dimensional Vault Antennas, and bindable Wireless Vault Terminals. Request crafting remains future work and does not block the storage-network release.
+Implemented: portable Basic Powered and Advanced Powered Vault Cells, persistent endpoint UUID/revision tracking, six-high powered columns, rear cargo, bounded explicit indexing, searchable transactional Vault Terminals, loaded-only powered transmitters, same-world antennas, Dimensional Vault Antennas, and bindable Wireless Vault Terminals. Request crafting remains future work and does not block the storage-network release.
 
 ## Phase 0 — Architecture contract
 
@@ -35,12 +35,12 @@ Implemented foundation:
 Phase 1 release work now includes:
 
 - stable portable endpoint UUIDs;
-- duplicate loaded-ID detection with safe re-keying;
+- duplicate loaded-ID detection with persistent mutation locks; only empty conflicted cells may be explicitly re-keyed;
 - monotonic storage revisions for manual, terminal and cargo mutations;
 - portable break/replace state;
 - legacy prototype recovery.
 
-Further crash-window journaling remains a hardening target for fabrication/request jobs rather than a reason to keep the basic storage network read-only.
+A durable cross-storage journal and abrupt-termination recovery tests remain required before advertising crash-atomic transfers. Version 0.3.0-rc.1 is a candidate for normal-operation and orderly-restart testing.
 
 Primary goal: prove storage cannot dupe or lose items across restart or physical relocation.
 
@@ -86,6 +86,7 @@ Implemented search:
 
 Implemented:
 
+- transactional withdrawal commit into the claim buffer;
 - transactional deposit;
 - transactional withdrawal;
 - live endpoint revalidation at commit time;

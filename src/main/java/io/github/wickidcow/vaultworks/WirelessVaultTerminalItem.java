@@ -9,6 +9,9 @@ import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
+import io.github.pylonmc.rebar.item.RebarItemSchema;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -25,6 +28,8 @@ import org.jetbrains.annotations.NotNull;
 public final class WirelessVaultTerminalItem extends RebarItem
         implements InteractRebarItemHandler {
 
+    private static final java.util.Map<PlayerInteractEvent, Boolean> PENDING = new java.util.WeakHashMap<>();
+
     private static final NamespacedKey TRANSMITTER_ID_KEY = Objects.requireNonNull(
             NamespacedKey.fromString("vaultworks:wireless_terminal_transmitter")
     );
@@ -36,13 +41,14 @@ public final class WirelessVaultTerminalItem extends RebarItem
     @Override
     @MultiHandler(
             priorities = {EventPriority.NORMAL, EventPriority.MONITOR},
-            ignoreCancelled = true
+            ignoreCancelled = false
     )
     public void onInteract(
             @NotNull PlayerInteractEvent event,
             @NotNull EventPriority priority
     ) {
-        if (!event.getAction().isRightClick()
+        if (event.getHand() != EquipmentSlot.HAND
+                || !event.getAction().isRightClick()
                 || event.useItemInHand() == Event.Result.DENY) {
             return;
         }
@@ -51,13 +57,15 @@ public final class WirelessVaultTerminalItem extends RebarItem
         boolean binding = event.getPlayer().isSneaking() && clicked != null;
 
         if (priority == EventPriority.NORMAL) {
+            if (binding && event.useInteractedBlock() == Event.Result.DENY) return;
+            PENDING.put(event, true);
             // A wireless-terminal click is an intentional VaultWorks action, not
             // a click-through into the block the player happened to target.
             event.setUseInteractedBlock(Event.Result.DENY);
             return;
         }
 
-        if (priority != EventPriority.MONITOR) {
+        if (priority != EventPriority.MONITOR || PENDING.remove(event) == null) {
             return;
         }
 
@@ -104,6 +112,17 @@ public final class WirelessVaultTerminalItem extends RebarItem
         }
 
         transmitter.open(event.getPlayer());
+    }
+
+    static boolean hasBoundTerminal(Player player, UUID transmitter) {
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item == null || item.isEmpty()) continue;
+            RebarItemSchema schema = RebarItemSchema.fromStack(item);
+            if (schema != null && schema.getKey().toString().equals("vaultworks:wireless_vault_terminal")
+                    && transmitter.toString().equals(item.getPersistentDataContainer()
+                        .get(TRANSMITTER_ID_KEY, PersistentDataType.STRING))) return true;
+        }
+        return false;
     }
 
     private void bind(VaultTransmitter transmitter) {

@@ -107,12 +107,29 @@ public final class VaultTransmitter extends VaultTerminal implements
             @NotNull List<ItemStack> drops,
             @NotNull BlockBreakContext context
     ) {
+        super.onBlockBreak(drops, context);
         VaultWorks.instance().wirelessRegistry().unregister(this);
     }
 
     @Override
     public @NotNull Component getGuiTitle() {
         return Component.text("Vault Transmitter — Network Access");
+    }
+
+    @Override
+    protected boolean canAccess(Player player) {
+        if (!isWirelessOnline()) return false;
+        try {
+            if (BlockStorage.get(getBlock()) != this
+                    || VaultWorks.instance().wirelessRegistry().resolve(transmitterId).orElse(null) != this) {
+                return false;
+            }
+        } catch (IllegalArgumentException unavailable) {
+            return false;
+        }
+        return super.canAccess(player)
+                || (WirelessVaultTerminalItem.hasBoundTerminal(player, transmitterId)
+                    && accessStatus(player) == AccessStatus.ALLOWED);
     }
 
     public UUID getTransmitterId() {

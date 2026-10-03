@@ -137,6 +137,14 @@ For example, a bulk cell could hold enormous quantities of a few types, while a 
 
 Exact numbers should be balanced later.
 
+## Implemented endpoint identity safety
+
+Vault Cells now persist an endpoint UUID and revision in both world state and their portable dropped item. The revision advances when authoritative storage/control state changes.
+
+Loaded endpoint UUIDs are registered in-memory. A duplicate UUID is treated as a hard safety fault rather than being auto-renamed: all loaded copies are marked conflicted and storage mutation is disabled. The conflict bit is persisted so simply unloading one copy cannot restore mutation access. This deliberately favors preserved/recoverable data over trying to guess which copy is legitimate.
+
+An empty conflicted Vault with no recovery stacks may be explicitly re-keyed from its GUI because there are no stored contents to legitimize. Filled conflicted Vaults must never be silently re-keyed because doing so would legitimize duplicated contents. A later Doctor/recovery workflow should provide administrator diagnostics for those filled conflicts.
+
 ## Index updates
 
 The index should be change-driven.
@@ -173,6 +181,36 @@ The index should maintain normalized searchable metadata:
 Search results can be paged and ranked without touching every stored stack.
 
 Withdrawal still validates against live physical storage.
+
+## Implemented withdrawal planning boundary
+
+VaultWorks has revision-aware withdrawal planning and a synchronous Terminal commit path into a persisted claim buffer.
+
+A plan is built from the currently connected and operational physical Vault Cells. Each source entry records:
+
+- stable endpoint UUID;
+- expected endpoint revision;
+- amount planned from that endpoint.
+
+Before a commit, VaultWorks re-walks the current explicit topology and resolves each source through the loaded endpoint registry. The plan is rejected if a source is no longer connected/accessible, if its revision changed, or if its stored amount is now too low.
+
+This means a Terminal page or search snapshot is never authorization to mutate storage. Cargo movement, player access, power loss, block movement, identity conflicts, or any other storage mutation can invalidate the old plan.
+
+The commit layer delivers into the persisted Terminal claim buffer. A write-ahead journal is not implemented; cross-chunk saves and external player inventory saves must not be described as crash-atomic.
+
+## Implemented Terminal claim buffer
+
+The Vault Terminal now has a five-slot Rebar/InvUI `VirtualInventory` registered through `VirtualInventoryRebarBlock`.
+
+Claim-buffer invariants:
+
+- it is persisted/restored by Rebar with the Terminal block;
+- players may remove items but cannot add or swap items into it;
+- breaking the Terminal drops any remaining claim contents through Rebar's standard virtual-inventory break handling;
+- item clicks re-resolve live storage before populating the buffer;
+- network withdrawal is enabled; full buffers leave source storage untouched.
+
+The plugin-owned buffer is the withdrawal destination. Normal persistence is provided by Rebar. Durable recovery for interrupted multi-owner writes remains future work.
 
 ## Transaction model
 
@@ -501,7 +539,7 @@ Every Vault Cell now carries:
 
 Both values travel with the portable dropped Vault item.
 
-Loaded endpoints are registered in-memory. If the same endpoint UUID appears on two loaded physical cells, the later cell is assigned a replacement UUID and the collision is logged. This prevents two loaded storage owners from silently aliasing one endpoint identity.
+Loaded endpoints are registered in memory. Duplicate UUIDs persistently lock every loaded copy; removing one copy never unlocks the other. Filled copies are never automatically re-keyed. Healthy empty portable cells may omit their endpoint ID so matching empty items can stack; each placement then receives a fresh identity.
 
 The revision increments for terminal, manual, cargo and recovery mutations. It is intended to support future change-driven cached indexing without making a cache authoritative.
 
@@ -539,3 +577,11 @@ Same-world access is range-limited. An adjacent Vault Antenna increases that ran
 Cross-world/dimensional access requires an adjacent Dimensional Vault Antenna and the configured cross-dimension permission. No world name is persisted or special-cased, so newly added worlds can participate without schema migration.
 
 If the transmitter or source network is unloaded, remote access fails closed. VaultWorks never force-loads it.
+
+## Destructive controls
+
+The five-step deletion sequence is per player, bound to endpoint UUID and revision, expires after 30 seconds, and is invalidated by inventory close. Only the next confirmation is revealed. The final server-thread action consumes the token before clearing contents and registration. Filled identity conflicts cannot use this path to bypass the conflict lock.
+
+## Test power
+
+The administrator-only Test Power Source uses Rebar producer nodes and supplies 1 MW. It has no survival recipe and does not bypass consumer power checks.

@@ -8,6 +8,7 @@ record VaultNetworkSnapshot(
         int registeredVaults,
         int itemTypes,
         int legacyRecoveryVaults,
+        int identityConflictVaults,
         long totalStored,
         long accessibleStored,
         long totalCapacity,

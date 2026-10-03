@@ -1,3 +1,7 @@
+# Current validation
+
+See [0.3.0-rc.1 verification](RELEASE-0.3.0-rc.1.md) for released Rebar 0.44.2-26.2 tests, the administrative test power source and clean restart coverage. The earlier snapshot validation below is retained as history.
+
 # Electricity validation — 0.1 prototype (2026-09-30)
 
 > Historical validation: these checks cover the earlier direct-powered 54-slot Vault prototype. The 0.2 storage layout replaces that design with a shared Vault Power Base, portable single-item Vault Cells and rear Cargo Nodes. Keep these results as evidence for the upstream Rebar electricity integration, but re-run gameplay validation on the 0.2 layout before a stable release.
@@ -6,7 +10,7 @@ Tested with Java 25, Paper 26.2 build 129, and the unmodified upstream Rebar ser
 
 The upstream download ZIP matched GitHub's SHA-256 `ed9bbaf30511b804beaf2daf1b3024e0612056bac8b3d78f0550460d9b1394d0`.
 
-A disposable Paper server loaded GridWorks and VaultWorks together and placed real Rebar blocks. A test-only producer supplied 100 W to a Power Coupler and a 32 W Powered Vault Cell. Checks passed on first boot and after a clean shutdown/restart:
+A disposable Paper server loaded GridWorks and VaultWorks together and placed real Rebar blocks. A test-only producer supplied 100 W to a Power Coupler and a 32 W Advanced Powered Vault Cell. Checks passed on first boot and after a clean shutdown/restart:
 
 - New coupler starts open and the cell remains unpowered.
 - Both cargo slot write gates reject insertion/extraction during an outage; direct GUI access remains available.

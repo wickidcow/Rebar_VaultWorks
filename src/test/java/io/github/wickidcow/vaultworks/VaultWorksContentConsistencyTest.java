@@ -68,6 +68,7 @@ class VaultWorksContentConsistencyTest {
             assertTrue(ids.add(matcher.group(1)), "Duplicate English item id: " + matcher.group(1));
         }
 
+        ids.remove("test_power_source");
         assertEquals(VaultWorksContentCatalog.ALL_ID_SET, ids);
     }
 

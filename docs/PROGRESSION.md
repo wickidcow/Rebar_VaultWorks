@@ -55,7 +55,7 @@ Design intent:
 - powers a contiguous vertical stack of up to six Vault Cells;
 - makes power state visually obvious without exposing wire ports on every cell.
 
-### Basic Vault Cell
+### Basic Powered Vault Cell
 
 Single-item bulk physical storage.
 
@@ -95,7 +95,7 @@ Goal: larger bases plus practical access away from the storage room.
 
 An upgraded lattice component.
 
-### Powered Vault Cell
+### Advanced Powered Vault Cell
 
 Higher bulk capacity using the same one-item physical ownership model and the advanced ominous-Vault visual. It still uses the shared Vault Power Base and rear Cargo Node layout.
 

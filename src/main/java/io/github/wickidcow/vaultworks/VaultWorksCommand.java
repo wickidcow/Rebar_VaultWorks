@@ -4,6 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
+import org.bukkit.entity.Player;
+import org.bukkit.NamespacedKey;
+import org.bukkit.inventory.ItemStack;
+import io.github.pylonmc.rebar.registry.RebarRegistry;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
@@ -26,8 +30,26 @@ final class VaultWorksCommand implements CommandExecutor {
             @NotNull String label,
             @NotNull String[] args
     ) {
+        if (!sender.hasPermission("vaultworks.admin")) {
+            sender.sendMessage(Component.text("You do not have permission to administer VaultWorks."));
+            return true;
+        }
+        if (args.length == 1 && args[0].equalsIgnoreCase("testpower")) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage(Component.text("Run /vaultworks testpower in game to receive the block."));
+                return true;
+            }
+            ItemStack source = RebarRegistry.ITEMS.get(new NamespacedKey(plugin, "test_power_source")).createNewItemStack();
+            if (player.getInventory().firstEmpty() < 0) {
+                sender.sendMessage(Component.text("Make room in your inventory first."));
+                return true;
+            }
+            player.getInventory().addItem(source);
+            sender.sendMessage(Component.text("Received a Vault Test Power Source (1 MW). Connect Rebar wiring to any side. Remove it after testing."));
+            return true;
+        }
         if (args.length != 1 || !args[0].equalsIgnoreCase("doctor")) {
-            sender.sendMessage(Component.text("Usage: /" + label + " doctor"));
+            sender.sendMessage(Component.text("Usage: /" + label + " doctor | testpower"));
             return true;
         }
 
@@ -56,7 +78,7 @@ final class VaultWorksCommand implements CommandExecutor {
         sender.sendMessage(Component.text(
                 "VaultWorks " + plugin.getPluginMeta().getVersion()
                         + " | recipes=" + plugin.registeredRecipeCount()
-                        + " | loaded-cells=" + plugin.endpointRegistry().loadedCount()
+                        + " | loaded-cells=" + VaultEndpointRegistry.loadedCount()
                         + " | loaded-transmitters=" + plugin.wirelessRegistry().loadedCount()
         ));
         sender.sendMessage(Component.text(
@@ -78,6 +100,9 @@ final class VaultWorksCommand implements CommandExecutor {
                         + plugin.wirelessPolicy().allowCrossDimension()
         ));
 
+        if (VaultEndpointRegistry.conflictedCount() > 0) {
+            failures.add(VaultEndpointRegistry.conflictedCount() + " loaded Vault Cells have locked duplicate identities");
+        }
         boolean pass = failures.isEmpty();
         if (!pass) {
             sender.sendMessage(Component.text("VaultWorks Doctor failures: " + String.join(", ", failures)));

@@ -1,43 +1,81 @@
 package io.github.wickidcow.vaultworks;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * Loaded physical Vault Cell identity registry.
+ * Tracks loaded physical Vault endpoint identities.
  *
- * Endpoint ids travel with portable cells, so moving a legitimate cell preserves
- * identity. A duplicate id loaded at the same time is rejected and the later
- * cell is re-keyed by BasicVaultCell rather than aliasing two physical stores.
+ * A duplicated endpoint UUID is treated as a hard safety fault. Every loaded
+ * copy is marked conflicted and remains locked even after one duplicate unloads;
+ * this prevents a cloned filled Vault from becoming usable merely by moving the
+ * other copy out of memory.
  */
 final class VaultEndpointRegistry {
 
-    private final Map<UUID, BasicVaultCell> cells = new HashMap<>();
+    private static final Map<UUID, Set<BasicVaultCell>> LOADED = new HashMap<>();
 
-    synchronized boolean register(BasicVaultCell cell) {
-        BasicVaultCell existing = cells.get(cell.getEndpointId());
-        if (existing != null && existing != cell) {
-            return false;
+    private VaultEndpointRegistry() {
+    }
+
+    static void register(BasicVaultCell cell) {
+        Set<BasicVaultCell> cells = LOADED.computeIfAbsent(
+                cell.getEndpointId(),
+                ignored -> Collections.newSetFromMap(new IdentityHashMap<>())
+        );
+        cells.add(cell);
+
+        if (cells.size() > 1) {
+            for (BasicVaultCell duplicate : cells) {
+                duplicate.flagIdentityConflict();
+            }
+            VaultWorks.instance().getLogger().severe(
+                    "Duplicate Vault endpoint UUID " + cell.getEndpointId()
+                            + " detected. All loaded copies are locked to prevent duplication."
+            );
         }
-        cells.put(cell.getEndpointId(), cell);
-        return true;
     }
 
-    synchronized void unregister(BasicVaultCell cell) {
-        cells.remove(cell.getEndpointId(), cell);
+    static void unregister(BasicVaultCell cell) {
+        Set<BasicVaultCell> cells = LOADED.get(cell.getEndpointId());
+        if (cells == null) {
+            return;
+        }
+
+        cells.remove(cell);
+        if (cells.isEmpty()) {
+            LOADED.remove(cell.getEndpointId());
+        }
     }
 
-    synchronized Optional<BasicVaultCell> resolve(UUID id) {
-        return Optional.ofNullable(cells.get(id));
+    static BasicVaultCell resolveUnique(UUID endpointId) {
+        Set<BasicVaultCell> cells = LOADED.get(endpointId);
+        if (cells == null || cells.size() != 1) {
+            return null;
+        }
+
+        BasicVaultCell cell = cells.iterator().next();
+        return cell.hasIdentityConflict() ? null : cell;
     }
 
-    synchronized int loadedCount() {
-        return cells.size();
+    static int loadedCopies(UUID endpointId) {
+        Set<BasicVaultCell> cells = LOADED.get(endpointId);
+        return cells == null ? 0 : cells.size();
     }
 
-    synchronized void clear() {
-        cells.clear();
+    static int loadedCount() {
+        return LOADED.values().stream().mapToInt(Set::size).sum();
+    }
+
+    static long conflictedCount() {
+        return LOADED.values().stream().flatMap(Set::stream).filter(BasicVaultCell::hasIdentityConflict).count();
+    }
+
+    static void clear() {
+        LOADED.clear();
     }
 }

@@ -43,7 +43,7 @@ bukkit {
     commands {
         register("vaultworks") {
             description = "VaultWorks administration and diagnostics."
-            usage = "/<command> doctor"
+            usage = "/<command> doctor | testpower"
             permission = "vaultworks.admin"
         }
     }
@@ -60,5 +60,21 @@ tasks.runServer {
     providers.gradleProperty("rebar.serverJar").orNull?.let { pluginJars.from(file(it)) }
     minecraftVersion(minecraftVersion)
     maxHeapSize = "1G"
-    jvmArgs("-Dcom.mojang.eula.agree=true")
+    jvmArgs("-Dcom.mojang.eula.agree=true", "-Dterminal.jline=false", "-Dterminal.ansi=false")
+}
+
+// Opt-in real-server regression harness; never included in the player JAR.
+val integrationTest by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
+    runtimeClasspath += compileClasspath
+}
+val integrationTestJar by tasks.registering(Jar::class) {
+    archiveBaseName.set("VaultWorksRuntimeTests")
+    from(integrationTest.output)
+}
+tasks.runServer {
+    if (providers.gradleProperty("vaultworks.runtimeTests").isPresent) {
+        dependsOn(integrationTestJar)
+        pluginJars.from(integrationTestJar.flatMap { it.archiveFile })
+    }
 }
