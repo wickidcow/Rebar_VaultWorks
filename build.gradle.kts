@@ -43,7 +43,7 @@ bukkit {
     commands {
         register("vaultworks") {
             description = "VaultWorks administration and diagnostics."
-            usage = "/<command> doctor | testpower"
+            usage = "/<command> doctor | recovery | testpower"
             permission = "vaultworks.admin"
         }
     }
@@ -64,11 +64,11 @@ tasks.runServer {
 }
 
 // Opt-in real-server regression harness; never included in the player JAR.
-val integrationTest by sourceSets.creating {
+val integrationTest = sourceSets.create("integrationTest") {
     compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
     runtimeClasspath += compileClasspath
 }
-val integrationTestJar by tasks.registering(Jar::class) {
+val integrationTestJar = tasks.register<Jar>("integrationTestJar") {
     archiveBaseName.set("VaultWorksRuntimeTests")
     from(integrationTest.output)
 }

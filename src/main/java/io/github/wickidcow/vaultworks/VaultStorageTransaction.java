@@ -19,6 +19,8 @@ final class VaultStorageTransaction {
     enum Status {
         OK,
         BUSY,
+        RECOVERY_REQUIRED,
+        TRANSFER_FAILED,
         NETWORK_TRUNCATED,
         NO_ACCESSIBLE_STORAGE,
         NO_MATCHING_ITEMS,
@@ -42,24 +44,25 @@ final class VaultStorageTransaction {
         finally { active = false; }
     }
 
-    private static ItemStack[] snapshot(Inventory inventory) {
-        ItemStack[] items = inventory.getStorageContents();
-        for (int i = 0; i < items.length; i++) if (items[i] != null) items[i] = items[i].clone();
-        return items;
+    private static boolean recoveryLocked(RebarBlock root) {
+        return VaultWorks.instance().recoveryStore().locked(VaultTransferRollback.key(root.getBlock()));
     }
 
     private VaultStorageTransaction() {
     }
 
     static Result withdraw(RebarBlock root, Inventory inventory, ItemStack identity, long requested) {
+        if (recoveryLocked(root)) return Result.of(0L, Status.RECOVERY_REQUIRED);
         return run(() -> withdrawNow(root, inventory, identity, requested));
     }
 
     static Result depositMatching(RebarBlock root, Inventory inventory, ItemStack identity) {
+        if (recoveryLocked(root)) return Result.of(0L, Status.RECOVERY_REQUIRED);
         return run(() -> depositMatchingNow(root, inventory, identity));
     }
 
     static Result depositInventory(RebarBlock root, Inventory inventory) {
+        if (recoveryLocked(root)) return Result.of(0L, Status.RECOVERY_REQUIRED);
         return run(() -> depositInventoryNow(root, inventory));
     }
 
@@ -104,60 +107,55 @@ final class VaultStorageTransaction {
                 .map(cell -> new VaultWithdrawalCandidate(cell.getEndpointId(),
                         cell.getEndpointRevision(), cell.networkAvailable(identity))).toList();
         VaultWithdrawalAllocation allocation = VaultWithdrawalMath.allocate(candidates, target);
+        List<BasicVaultCell> participants = new ArrayList<>();
         for (VaultWithdrawalSource source : allocation.sources()) {
             BasicVaultCell cell = VaultEndpointRegistry.resolveUnique(source.endpointId());
             if (cell == null || cell.getEndpointRevision() != source.expectedRevision()
                     || cell.networkAvailable(identity) < source.amount()) {
                 return Result.of(0L, Status.NO_ACCESSIBLE_STORAGE);
             }
+            participants.add(cell);
         }
         long removed = 0L;
         List<CellDebit> debits = new ArrayList<>();
-        List<CellDebit> snapshots = new ArrayList<>();
-
-        ItemStack[] inventoryBefore = snapshot(inventory);
+        VaultTransferRollback recovery = new VaultTransferRollback(root, inventory, participants, "terminal withdrawal");
         try {
-        for (BasicVaultCell cell : matches) {
-            if (removed >= target) {
-                break;
+            for (BasicVaultCell cell : participants) {
+                if (removed >= target) {
+                    break;
+                }
+
+                long amount = cell.networkExtract(identity, target - removed);
+                if (amount > 0L) {
+                    debits.add(new CellDebit(cell, amount));
+                    removed += amount;
+                }
             }
 
-            long beforeAmount = cell.getStoredAmount();
-            snapshots.add(new CellDebit(cell, 0L, beforeAmount));
-            long amount = cell.networkExtract(identity, target - removed);
-            if (amount > 0L) {
-                debits.add(new CellDebit(cell, amount, beforeAmount));
-                removed += amount;
-            }
-        }
-
-        if (removed <= 0L) {
-            return Result.of(0L, Status.NO_ACCESSIBLE_STORAGE);
-        }
-
-        long delivered = deliver(inventory, identity, removed);
-        if (delivered < removed) {
-            long rollback = removed - delivered;
-            for (int i = debits.size() - 1; i >= 0 && rollback > 0L; i--) {
-                CellDebit debit = debits.get(i);
-                long restore = Math.min(rollback, debit.amount());
-                debit.cell().networkRollbackExtract(identity, restore);
-                rollback -= restore;
+            if (removed <= 0L) {
+                return Result.of(0L, Status.NO_ACCESSIBLE_STORAGE);
             }
 
-            if (rollback > 0L) {
-                throw new IllegalStateException(
-                        "Vault terminal could not compensate an unexpected player-inventory delivery shortfall"
-                );
-            }
-        }
+            long delivered = deliver(inventory, identity, removed);
+            if (delivered < removed) {
+                long rollback = removed - delivered;
+                for (int i = debits.size() - 1; i >= 0 && rollback > 0L; i--) {
+                    CellDebit debit = debits.get(i);
+                    long restore = Math.min(rollback, debit.amount());
+                    debit.cell().networkRollbackExtract(identity, restore);
+                    rollback -= restore;
+                }
 
-        return Result.of(delivered, delivered > 0L ? Status.OK : Status.INVENTORY_FULL);
+                if (rollback > 0L) {
+                    throw new IllegalStateException(
+                            "Vault terminal could not compensate an unexpected player-inventory delivery shortfall"
+                    );
+                }
+            }
+
+            return Result.of(delivered, delivered > 0L ? Status.OK : Status.INVENTORY_FULL);
         } catch (RuntimeException failure) {
-            inventory.setStorageContents(inventoryBefore);
-            for (CellDebit debit : snapshots) {
-                debit.cell().restoreTransactionAmount(identity, debit.beforeAmount());
-            }
+            recovery.recover(failure);
             throw failure;
         }
     }
@@ -172,10 +170,11 @@ final class VaultStorageTransaction {
         if (network.truncated()) {
             return Result.of(0L, Status.NETWORK_TRUNCATED);
         }
-        return depositMatching(network.cells(), inventory, identity);
+        return depositMatching(root, network.cells(), inventory, identity);
     }
 
     private static Result depositMatching(
+            RebarBlock root,
             List<BasicVaultCell> networkCells,
             Inventory inventory,
             ItemStack identity
@@ -203,41 +202,43 @@ final class VaultStorageTransaction {
         }
 
         long target = Math.min(availableInInventory, free);
+        List<BasicVaultCell> participants = new ArrayList<>();
+        long remaining = target;
+        for (BasicVaultCell cell : matches) {
+            long planned = Math.min(remaining, cell.networkFreeCapacity(identity));
+            if (planned > 0L) { participants.add(cell); remaining -= planned; }
+            if (remaining == 0L) break;
+        }
 
         // Remove first. The same inventory slots create enough deterministic room
         // to compensate if a cell becomes unavailable before commit.
-        ItemStack[] inventoryBefore = snapshot(inventory);
-        List<CellDebit> changed = new ArrayList<>();
+        VaultTransferRollback recovery = new VaultTransferRollback(root, inventory, participants, "terminal deposit");
         try {
-        long removed = removeMatching(inventory, identity, target);
-        long inserted = 0L;
+            long removed = removeMatching(inventory, identity, target);
+            long inserted = 0L;
 
-        for (BasicVaultCell cell : matches) {
-            if (inserted >= removed) {
-                break;
+            for (BasicVaultCell cell : participants) {
+                if (inserted >= removed) {
+                    break;
+                }
+                inserted += cell.networkInsert(identity, removed - inserted);
             }
-            changed.add(new CellDebit(cell, 0L, cell.getStoredAmount()));
-            inserted += cell.networkInsert(identity, removed - inserted);
-        }
 
-        if (inserted < removed) {
-            long restored = deliver(inventory, identity, removed - inserted);
-            if (restored != removed - inserted) {
-                throw new IllegalStateException(
-                        "Vault terminal could not compensate an unexpected storage insert shortfall"
-                );
+            if (inserted < removed) {
+                long restored = deliver(inventory, identity, removed - inserted);
+                if (restored != removed - inserted) {
+                    throw new IllegalStateException(
+                            "Vault terminal could not compensate an unexpected storage insert shortfall"
+                    );
+                }
             }
-        }
 
-        if (inserted <= 0L) {
-            return Result.of(0L, Status.STORAGE_FULL);
-        }
-        return Result.of(inserted, Status.OK);
+            if (inserted <= 0L) {
+                return Result.of(0L, Status.STORAGE_FULL);
+            }
+            return Result.of(inserted, Status.OK);
         } catch (RuntimeException failure) {
-            for (CellDebit cell : changed) {
-                cell.cell().restoreTransactionAmount(identity, cell.beforeAmount());
-            }
-            inventory.setStorageContents(inventoryBefore);
+            recovery.recover(failure);
             throw failure;
         }
     }
@@ -272,7 +273,7 @@ final class VaultStorageTransaction {
         long moved = 0L;
         Status lastStatus = Status.NO_ACCESSIBLE_STORAGE;
         for (ItemStack identity : identities) {
-            Result result = depositMatching(network.cells(), inventory, identity);
+            Result result = depositMatching(root, network.cells(), inventory, identity);
             if (result.status() == Status.NETWORK_TRUNCATED) {
                 return Result.of(moved, Status.NETWORK_TRUNCATED);
             }
@@ -406,6 +407,6 @@ final class VaultStorageTransaction {
         }
     }
 
-    private record CellDebit(BasicVaultCell cell, long amount, long beforeAmount) {
+    private record CellDebit(BasicVaultCell cell, long amount) {
     }
 }

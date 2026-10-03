@@ -27,6 +27,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
     private final VaultDeleteConfirmations deleteConfirmations = new VaultDeleteConfirmations();
     private PowerPolicy policy;
     private StoragePolicy storagePolicy;
+    private VaultRecoveryStore recoveryStore;
     private WirelessPolicy wirelessPolicy;
     private final VaultWirelessRegistry wirelessRegistry = new VaultWirelessRegistry();
     private PageButton guide;
@@ -46,6 +47,10 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
         VaultEndpointRegistry.clear();
         instance = this;
+        recoveryStore = new VaultRecoveryStore(getDataFolder().toPath().resolve("recovery"));
+        if (!recoveryStore.incidents().isEmpty() || recoveryStore.globallyLocked()) {
+            getLogger().severe("Vault recovery records require review. Affected storage is locked; run /vaultworks recovery.");
+        }
         VaultWorksContentCatalog.validate();
         java.util.Objects.requireNonNull(getCommand("vaultworks"))
                 .setExecutor(new VaultWorksCommand(this));
@@ -338,6 +343,8 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
     }
 
     VaultDeleteConfirmations deleteConfirmations() { return deleteConfirmations; }
+
+    VaultRecoveryStore recoveryStore() { return java.util.Objects.requireNonNull(recoveryStore); }
 
     VaultWirelessRegistry wirelessRegistry() {
         return wirelessRegistry;

@@ -118,7 +118,7 @@ public final class VaultTransmitter extends VaultTerminal implements
 
     @Override
     protected boolean canAccess(Player player) {
-        if (!isWirelessOnline()) return false;
+        if (!isWirelessOnline() || hasRecoveryLock()) return false;
         try {
             if (BlockStorage.get(getBlock()) != this
                     || VaultWorks.instance().wirelessRegistry().resolve(transmitterId).orElse(null) != this) {

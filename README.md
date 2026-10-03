@@ -12,7 +12,7 @@ There is no magic global inventory object and no world-wide storage scan.
 
 ## Project status
 
-**0.3.0-rc.1: release-candidate storage network with transactional and wireless access.**
+**0.3.0-rc.2: release-candidate storage network with transactional and wireless access.**
 
 Available now:
 
@@ -35,7 +35,7 @@ Available now:
 
 Requires **Paper 26.2, Java 25, and Rebar 0.44.2-26.2**. The released Rebar API and server JAR are pinned for this build. Older Rebar versions without electricity are unsupported.
 
-[Download the rolling raw 0.3.0-rc.1 JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.3.0-rc.1.jar). Place it directly in `plugins/` and restart. The rolling development JAR is published only after the main branch passes build, package, live Paper/Rebar startup, `/vaultworks doctor`, clean shutdown, and byte-for-byte rebuild verification.
+[Download the rolling raw 0.3.0-rc.2 JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.3.0-rc.2.jar). Place it directly in `plugins/` and restart. The rolling development JAR is published only after the main branch passes build, package, live Paper/Rebar startup, `/vaultworks doctor`, clean shutdown, and byte-for-byte rebuild verification.
 
 ### Build a Vault column
 
@@ -64,7 +64,7 @@ Advanced cell Quick Withdraw:
 
 Stack limits and available inventory space are respected. Basic cells retain left-click to fill inventory and right-click for one item.
 
-Healthy empty cells stack up to 64 per tier. Unregistered empty drops with default overflow settings stack with freshly crafted cells. Registered empty cells stack only when their item registration and overflow settings match. Empty portable stacks receive fresh endpoint IDs when placed. Filled cells, cells with legacy recovery contents, and identity-conflicted cells remain unstackable and preserve their endpoint IDs.
+Healthy empty cells stack up to 64 per tier. Unregistered empty drops with default overflow settings stack with freshly crafted cells. Registered empty cells stack only when their item registration and overflow settings match. Empty portable stacks receive fresh endpoint IDs when placed. Filled cells, cells with legacy recovery contents, and identity-conflicted or transfer-recovery-locked cells remain unstackable and preserve their endpoint IDs.
 
 ### Permanently empty a cell
 
@@ -76,7 +76,17 @@ Only the final step destroys the stored items (including any legacy recovery sta
 
 Administrators can run `/vaultworks testpower` in game to receive a **Vault Test Power Source**. It supplies **1 MW** continuously through normal Rebar electrical ports on all six sides. Connect it to the rear electrical port of a Vault Power Base or Transmitter. It does not require fuel, daylight, or a particular dimension.
 
-The block has no survival recipe and only administrators can place it. Remove it after testing. `/vaultworks doctor` reports storage policies, loaded cells, transmitters, and identity conflicts.
+The block has no survival recipe and only administrators can place it. Remove it after testing. `/vaultworks doctor` reports storage policies, loaded cells, transmitters, identity conflicts, and unresolved transfer recovery.
+
+### Failed-transfer recovery
+
+If an inventory operation throws, VaultWorks attempts to restore **every** participating cell and the inventory independently. A failure in one restore no longer skips the others. Registration, cell quick transfers, legacy recovery, and terminal transfers use cloned snapshots.
+
+Before attempting compensation, VaultWorks writes a checksummed recovery record containing the original contents and the contents observed at failure. When every restore is verified, that record is marked resolved and retained for audit. If compensation fails, the record remains and the affected cells and terminal stay locked across restart. Cargo, manual access, wireless access, block breaking, and endpoint re-keying respect the lock. Healthy storage elsewhere stays usable.
+
+Use `/vaultworks recovery` to list unresolved records; `/vaultworks doctor` reports them as failures. Evidence is stored in `plugins/VaultWorks/recovery/`. A corrupt/incomplete record or a recovery-store fault locks storage globally because its affected participants cannot be safely established. There is no automatic item replay or unlock command. See [recovery procedure](docs/TRANSFER-RECOVERY.md).
+
+Successful transfers do not write recovery records. This failure-handling mechanism is **not** a write-ahead journal for normal transfers and does not make separate world/player saves crash-atomic.
 
 ### Portable endpoint identity
 

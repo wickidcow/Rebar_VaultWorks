@@ -48,8 +48,22 @@ final class VaultWorksCommand implements CommandExecutor {
             sender.sendMessage(Component.text("Received a Vault Test Power Source (1 MW). Connect Rebar wiring to any side. Remove it after testing."));
             return true;
         }
+        if (args.length == 1 && args[0].equalsIgnoreCase("recovery")) {
+            VaultRecoveryStore store = plugin.recoveryStore();
+            sender.sendMessage(Component.text("Vault transfer recovery: " + store.incidents().size()
+                    + " unresolved record(s); all-storage lock=" + store.globallyLocked()));
+            for (VaultRecoveryStore.Incident incident : store.incidents()) {
+                sender.sendMessage(Component.text(incident.id() + " | " + incident.operation()
+                        + " | cells=" + incident.cells().size() + " | location=" + incident.root()));
+            }
+            for (String fault : store.faults()) sender.sendMessage(Component.text(fault));
+            if (!store.incidents().isEmpty() || store.globallyLocked()) {
+                sender.sendMessage(Component.text("Evidence: plugins/VaultWorks/recovery/. Stop the server and preserve this folder with the world and player data before reviewing. No items are replayed or unlocked automatically."));
+            }
+            return true;
+        }
         if (args.length != 1 || !args[0].equalsIgnoreCase("doctor")) {
-            sender.sendMessage(Component.text("Usage: /" + label + " doctor | testpower"));
+            sender.sendMessage(Component.text("Usage: /" + label + " doctor | recovery | testpower"));
             return true;
         }
 
@@ -102,6 +116,9 @@ final class VaultWorksCommand implements CommandExecutor {
 
         if (VaultEndpointRegistry.conflictedCount() > 0) {
             failures.add(VaultEndpointRegistry.conflictedCount() + " loaded Vault Cells have locked duplicate identities");
+        }
+        if (!plugin.recoveryStore().incidents().isEmpty() || plugin.recoveryStore().globallyLocked()) {
+            failures.add("unresolved transfer recovery; run /vaultworks recovery");
         }
         boolean pass = failures.isEmpty();
         if (!pass) {

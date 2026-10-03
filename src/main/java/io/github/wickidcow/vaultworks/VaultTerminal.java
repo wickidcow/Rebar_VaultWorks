@@ -3,6 +3,7 @@ package io.github.wickidcow.vaultworks;
 import io.github.pylonmc.rebar.block.RebarBlock;
 import io.github.pylonmc.rebar.block.BlockStorage;
 import io.github.pylonmc.rebar.block.context.BlockCreateContext;
+import io.github.pylonmc.rebar.block.context.BlockBreakContext;
 import io.github.pylonmc.rebar.block.interfaces.GuiRebarBlock;
 import io.github.pylonmc.rebar.block.interfaces.VirtualInventoryRebarBlock;
 import io.github.pylonmc.rebar.item.RebarItemSchema;
@@ -73,6 +74,7 @@ public class VaultTerminal extends RebarBlock implements GuiRebarBlock, VirtualI
     }
 
     protected boolean canAccess(Player player) {
+        if (hasRecoveryLock()) return false;
         try {
             return BlockStorage.get(getBlock()) == this
                     && player.getWorld().equals(getBlock().getWorld())
@@ -85,9 +87,18 @@ public class VaultTerminal extends RebarBlock implements GuiRebarBlock, VirtualI
     protected boolean requireAccess(Player player) {
         if (canAccess(player)) return true;
         player.closeInventory();
-        player.sendMessage(Component.text("Vault access is no longer available. Check power, range and your bound terminal."));
+        player.sendMessage(Component.text(hasRecoveryLock()
+                ? "Terminal locked after a failed transfer. An administrator must review /vaultworks recovery."
+                : "Vault access is no longer available. Check power, range and your bound terminal."));
         return false;
     }
+
+    public boolean hasRecoveryLock() {
+        return VaultWorks.instance().recoveryStore().locked(VaultTransferRollback.key(getBlock()));
+    }
+
+    @Override
+    public boolean onPreBlockBreak(@NotNull BlockBreakContext context) { return !hasRecoveryLock(); }
 
     @Override
     public void open(@NotNull Player player) {
@@ -257,11 +268,11 @@ public class VaultTerminal extends RebarBlock implements GuiRebarBlock, VirtualI
             VaultStorageTransaction.Result result;
 
             if (clickType.isShiftClick() && clickType.isRightClick()) {
-                result = VaultStorageTransaction.depositMatching(
+                result = attemptTransfer(() -> VaultStorageTransaction.depositMatching(
                         VaultTerminal.this,
                         player.getInventory(),
                         summary.item()
-                );
+                ));
                 player.closeInventory();
                 sendTransactionResult(player, result, "Deposited");
                 return;
@@ -278,12 +289,12 @@ public class VaultTerminal extends RebarBlock implements GuiRebarBlock, VirtualI
                 return;
             }
 
-            result = VaultStorageTransaction.withdraw(
+            result = attemptTransfer(() -> VaultStorageTransaction.withdraw(
                     VaultTerminal.this,
                     claimInventory.asBukkitInventory(),
                     summary.item(),
                     requested
-            );
+            ));
             sendTransactionResult(player, result, "Moved to claim buffer:");
             if (canAccess(player)) VaultTerminal.this.open(player);
         }
@@ -415,10 +426,10 @@ public class VaultTerminal extends RebarBlock implements GuiRebarBlock, VirtualI
         @Override
         public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
             if (!requireAccess(player)) return;
-            VaultStorageTransaction.Result result = VaultStorageTransaction.depositInventory(
+            VaultStorageTransaction.Result result = attemptTransfer(() -> VaultStorageTransaction.depositInventory(
                     VaultTerminal.this,
                     player.getInventory()
-            );
+            ));
             player.closeInventory();
             sendTransactionResult(player, result, "Deposited");
         }
@@ -438,6 +449,8 @@ public class VaultTerminal extends RebarBlock implements GuiRebarBlock, VirtualI
 
         String message = switch (result.status()) {
             case BUSY -> "Another Vault transfer is in progress. Try again.";
+            case RECOVERY_REQUIRED -> "Vault storage is locked after a failed transfer. Ask an administrator to run /vaultworks recovery.";
+            case TRANSFER_FAILED -> "Transfer interrupted. Check your inventory; an administrator can inspect /vaultworks doctor.";
             case NETWORK_TRUNCATED ->
                     "Vault network safety limit reached. No items were moved; split the network or raise the configured bound.";
             case NO_ACCESSIBLE_STORAGE ->
@@ -452,6 +465,15 @@ public class VaultTerminal extends RebarBlock implements GuiRebarBlock, VirtualI
                     "No items were moved.";
         };
         player.sendMessage(Component.text(message));
+    }
+
+    private VaultStorageTransaction.Result attemptTransfer(java.util.function.Supplier<VaultStorageTransaction.Result> action) {
+        try { return action.get(); }
+        catch (RuntimeException failure) {
+            VaultWorks.instance().getLogger().log(java.util.logging.Level.WARNING, "Terminal transfer interrupted", failure);
+            return VaultStorageTransaction.Result.of(0L, hasRecoveryLock()
+                    ? VaultStorageTransaction.Status.RECOVERY_REQUIRED : VaultStorageTransaction.Status.TRANSFER_FAILED);
+        }
     }
 
     private final class RefreshButton extends AbstractItem {

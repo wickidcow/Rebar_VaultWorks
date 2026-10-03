@@ -196,7 +196,7 @@ Before a commit, VaultWorks re-walks the current explicit topology and resolves 
 
 This means a Terminal page or search snapshot is never authorization to mutate storage. Cargo movement, player access, power loss, block movement, identity conflicts, or any other storage mutation can invalidate the old plan.
 
-The commit layer delivers into the persisted Terminal claim buffer. A write-ahead journal is not implemented; cross-chunk saves and external player inventory saves must not be described as crash-atomic.
+The commit layer delivers into the persisted Terminal claim buffer. Failed transfers capture checksummed recovery evidence before compensation; unresolved compensation locks its cells and terminal across restart. Every participant restore is attempted independently and verified. This exception path is not a write-ahead journal for successful transfers; cross-chunk saves and external player inventory saves must not be described as crash-atomic.
 
 ## Implemented Terminal claim buffer
 
