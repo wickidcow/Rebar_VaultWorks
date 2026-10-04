@@ -39,6 +39,7 @@ import xyz.xenondevs.invui.Click;
 import xyz.xenondevs.invui.gui.Gui;
 import xyz.xenondevs.invui.item.AbstractItem;
 import xyz.xenondevs.invui.item.ItemProvider;
+import xyz.xenondevs.invui.window.Window;
 
 /**
  * A single-item high-capacity physical storage cell.
@@ -687,6 +688,11 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     protected boolean registerFromMainHand(Player player) {
+        return registerFromInventorySlot(player, -1, null);
+    }
+
+    /** Re-read the real source slot at click time; picker icons are never stored. */
+    protected boolean registerFromInventorySlot(Player player, int slot, ItemStack expected) {
         if (!requireOperational(player)) {
             return false;
         }
@@ -699,9 +705,14 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             return false;
         }
 
-        ItemStack hand = player.getInventory().getItemInMainHand();
+        if (slot < -1 || slot >= player.getInventory().getStorageContents().length) return false;
+        ItemStack hand = slot == -1 ? player.getInventory().getItemInMainHand() : player.getInventory().getItem(slot);
         if (hand == null || hand.isEmpty()) {
-            player.sendMessage(Component.text("Hold the item you want to register, then click the center slot."));
+            player.sendMessage(Component.text("That inventory slot is empty. Choose an item to register."));
+            return false;
+        }
+        if (expected != null && !hand.isSimilar(expected)) {
+            player.sendMessage(Component.text("That inventory slot changed. Reopen Register Stored Item and choose again."));
             return false;
         }
         if (isVaultCell(hand)) {
@@ -712,7 +723,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         ItemStack keyItem = hand.asOne();
         VaultTransferRollback recovery = new VaultTransferRollback(this, player.getInventory(), List.of(this), "cell registration");
         try {
-            player.getInventory().setItemInMainHand(hand.getAmount() <= 1 ? null : hand.asQuantity(hand.getAmount() - 1));
+            ItemStack remaining = hand.getAmount() <= 1 ? null : hand.asQuantity(hand.getAmount() - 1);
+            if (slot == -1) player.getInventory().setItemInMainHand(remaining);
+            else player.getInventory().setItem(slot, remaining);
             register(keyItem);
         } catch (RuntimeException failure) {
             recoverTransfer(player, recovery, failure);
@@ -721,6 +734,54 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         player.sendMessage(Component.text("Registered ").append(keyItem.effectiveName())
                 .append(Component.text(" using 1 item.")));
         return true;
+    }
+
+    private void openRegistrationPicker(Player player) {
+        if (!requireOperational(player) || storedItem != null) return;
+        Window.builder().setUpperGui(createRegistrationPicker(player)).setTitle(Component.text("Choose Item to Register"))
+                .setViewer(player).build().open();
+    }
+
+    private Gui createRegistrationPicker(Player player) {
+        Gui picker = Gui.builder().setStructure(
+                ". . . . . . . . .",
+                ". . . . . . . . .",
+                ". . . . . . . . .",
+                ". . . . . . . . .",
+                "# # # # b # # # #")
+                .addIngredient('#', GuiItems.backgroundBlack())
+                .addIngredient('b', new AbstractItem() {
+                    @Override
+                    public @NotNull ItemProvider getItemProvider(@NotNull Player viewer) {
+                        return ItemStackBuilder.of(Material.ARROW).name(Component.text("Back to Vault"));
+                    }
+
+                    @Override
+                    public void handleClick(@NotNull ClickType type, @NotNull Player viewer, @NotNull Click click) {
+                        if (requireOperational(viewer)) open(viewer);
+                    }
+                }).build();
+        for (int index = 0; index < 36; index++) {
+            // Match the familiar inventory layout: three storage rows, then hotbar.
+            final int sourceSlot = (index + 9) % 36;
+            ItemStack source = player.getInventory().getItem(sourceSlot);
+            if (source == null || source.isEmpty() || isVaultCell(source)) continue;
+            ItemStack expected = source.asOne();
+            picker.setItem(index, new AbstractItem() {
+                @Override
+                public @NotNull ItemProvider getItemProvider(@NotNull Player viewer) {
+                    return ItemStackBuilder.of(expected.clone())
+                            .lore(Component.text("Click to register this item."), Component.text("Consumes exactly 1 from your inventory."));
+                }
+
+                @Override
+                public void handleClick(@NotNull ClickType type, @NotNull Player viewer, @NotNull Click click) {
+                    if (type != ClickType.LEFT && type != ClickType.RIGHT) return;
+                    if (registerFromInventorySlot(viewer, sourceSlot, expected)) open(viewer);
+                }
+            });
+        }
+        return picker;
     }
 
     protected void quickDeposit(Player player) {
@@ -985,8 +1046,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                 return ItemStackBuilder.of(Material.ITEM_FRAME)
                         .name(Component.text("Register Stored Item"))
                         .lore(
-                                Component.text("Hold the item in your main hand."),
-                                Component.text("Click here to register exactly 1 item.")
+                                Component.text("Click to choose an item from your inventory."),
+                                Component.text("Registration consumes exactly 1 item."),
+                                Component.text("You can open the Vault empty-handed.")
                         );
             }
 
@@ -1001,7 +1063,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         @Override
         public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
             if (storedItem == null) {
-                registerFromMainHand(player);
+                if (clickType == ClickType.LEFT || clickType == ClickType.RIGHT) openRegistrationPicker(player);
             }
         }
     }

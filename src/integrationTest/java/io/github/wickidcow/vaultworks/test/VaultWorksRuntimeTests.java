@@ -273,6 +273,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         check(emptyA.getDropItem(new BlockBreakContext.PluginBreak(emptyA.getBlock())).getMaxStackSize()==1,"filled cells stay unstackable");
         BlockStorage.breakBlock(emptyB);BlockStorage.breakBlock(emptyA);BlockStorage.breakBlock(emptyBase);
 
+        verifyRegistrationPicker();
         verifyManualCompensation();
 
         VaultTestPowerSource source = (VaultTestPowerSource)place("test_power_source",6,100,2);
@@ -290,6 +291,51 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         getConfig().set("expected-cell-amount",12345L);
         getConfig().set("expected-claim-diamonds",320);
         saveConfig();
+    }
+
+    private void verifyRegistrationPicker() throws Exception {
+        VaultPowerBase base = (VaultPowerBase) place("vault_power_base", 8, 100, 2);
+        for (String tier : List.of("basic_vault_cell", "powered_vault_cell")) {
+            BasicVaultCell cell = (BasicVaultCell) place(tier, 8, 101, 2);
+            power(base, true);
+            playerInventory.clear();
+            ItemStack sample = new ItemStack(Material.DIAMOND, 12);
+            sample.editMeta(meta -> meta.displayName(net.kyori.adventure.text.Component.text("Custom registration item")));
+            playerInventory.setItem(9, sample);
+            Gui picker = (Gui) call(cell, "createRegistrationPicker", player);
+            check(picker.getItem(0) != null && picker.getItem(27) == null && picker.getItem(40) != null,
+                    tier + " picker maps inventory slots and includes back button");
+            ItemStack icon = picker.getItem(0).getItemProvider(player).get();
+            check(icon.getType() == Material.DIAMOND && playerInventory.getItem(9).isSimilar(sample),
+                    tier + " picker preview leaves source metadata untouched");
+            check((boolean) call(cell, "registerFromInventorySlot", player, 9, sample.asOne()), tier + " registers with an empty main hand");
+            check(cell.getStoredItem().isSimilar(sample) && cell.getStoredAmount() == 1
+                    && playerInventory.getItem(9).getAmount() == 11, tier + " preserves custom identity and consumes exactly one");
+            check(!(boolean) call(cell, "registerFromInventorySlot", player, 9, sample.asOne())
+                    && playerInventory.getItem(9).getAmount() == 11, tier + " repeated registration consumes nothing");
+            call(cell, "setStoredState", null, 0L);
+            call(cell, "clearRegistration", player);
+            playerInventory.setItem(9, new ItemStack(Material.EMERALD, 4));
+            check(!(boolean) call(cell, "registerFromInventorySlot", player, 9, sample.asOne())
+                    && cell.getStoredItem() == null && playerInventory.getItem(9).getAmount() == 4,
+                    tier + " stale picker cannot register a replacement item");
+            playerInventory.setItem(9, null);
+            check(!(boolean) call(cell, "registerFromInventorySlot", player, 9, sample.asOne()), tier + " emptied source is rejected");
+            playerInventory.setItem(9, sample.asOne());
+            power(base, false);
+            check(!(boolean) call(cell, "registerFromInventorySlot", player, 9, sample.asOne())
+                    && playerInventory.getItem(9).getAmount() == 1, tier + " power loss preserves source item");
+            power(base, true);
+            check((boolean) call(cell, "registerFromInventorySlot", player, 9, sample.asOne())
+                    && playerInventory.getItem(9) == null, tier + " last source item is consumed once");
+            call(cell, "setStoredState", null, 0L);
+            call(cell, "clearRegistration", player);
+            playerInventory.setItem(9, sample);
+            Player failure = playerWithFault("setItem", 1);
+            check(!(boolean) call(cell, "registerFromInventorySlot", failure, 9, sample.asOne())
+                    && cell.getStoredItem() == null && playerInventory.getItem(9).getAmount() == 12,
+                    tier + " registration failure restores inventory and cell");
+        }
     }
 
     private void verifyManualCompensation() throws Exception {
