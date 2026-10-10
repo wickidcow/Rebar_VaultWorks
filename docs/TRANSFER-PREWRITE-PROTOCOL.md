@@ -8,7 +8,7 @@ This development branch adds a distinct `prepared` recovery-record state to `Vau
 
 ## Implemented invariants
 
-- `prepare(evidence, endpointIds, root, operation)` creates a durable, checksummed record and locks the named participants before returning. Empty participant sets or missing scope are rejected.
+- `prepare(evidence, endpointIds, root, operation)` creates a durable, checksummed record and locks the named participants before returning. Empty participant sets or missing scope are rejected; overlapping endpoint or terminal locks, or a global recovery fault, prevent new prepared intents.
 - The record is forced to disk before an atomic rename, using the same audited file format as failure incidents. The prepared state survives server restart.
 - During startup, a valid PREPARED record locks its endpoint UUIDs and initiating terminal. A damaged record or incomplete pending file instead fails closed globally.
 - `resolved(...)` is reserved for the existing **failed-transfer rollback** path. It rejects PREPARED records rather than accepting an ordinary method return as a safe commit.
