@@ -1,6 +1,6 @@
 # Current validation
 
-See [0.3.0-rc.1 verification](RELEASE-0.3.0-rc.1.md) for released Rebar 0.44.2-26.2 tests, the administrative test power source and clean restart coverage. The earlier snapshot validation below is retained as history.
+Current development CI compiles and runs its Paper 26.2 runtime smoke and restart tests against the published **Rebar 0.44.4-26.2** release JAR with a pinned SHA-256 digest. See [0.3.0-rc.1 verification](RELEASE-0.3.0-rc.1.md) for the earlier Rebar 0.44.2-26.2 release-candidate validation. Older snapshot validation below is retained as history.
 
 # Electricity validation — 0.1 prototype (2026-09-30)
 

@@ -33,7 +33,7 @@ Available now:
 - Quick deposit, quick withdraw, clear-registration control and per-Vault overflow-purge toggle.
 - Filled Vault Cells keep their stored item, count and overflow setting inside the dropped Vault item when broken, so the cell can be moved and placed elsewhere without dumping its contents.
 
-Requires **Paper 26.2, Java 25, and Rebar 0.44.2-26.2**. The released Rebar API and server JAR are pinned for this build. Older Rebar versions without electricity are unsupported.
+Requires **Paper 26.2, Java 25, and Rebar 0.44.4-26.2**. The released Rebar API and server JAR are pinned for this build. Older Rebar versions without electricity are unsupported.
 
 [Download the rolling raw 0.3.0-rc.2 JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.3.0-rc.2.jar). Place it directly in `plugins/` and restart. The rolling development JAR is published only after the main branch passes build, package, live Paper/Rebar startup, `/vaultworks doctor`, clean shutdown, and byte-for-byte rebuild verification.
 
