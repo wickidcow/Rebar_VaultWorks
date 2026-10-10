@@ -88,6 +88,9 @@ final class VaultRecoveryStore {
                 || root == null || root.isBlank() || operation == null || operation.isBlank()) {
             throw new IllegalArgumentException("Prepared transfer must name its participants, root and operation");
         }
+        if (globallyLocked() || locked(root) || cells.stream().anyMatch(this::locked)) {
+            throw new IllegalStateException("A prepared transfer cannot overlap unresolved recovery locks");
+        }
         return createRecord(evidence, cells, root, operation, "prepared");
     }
 
