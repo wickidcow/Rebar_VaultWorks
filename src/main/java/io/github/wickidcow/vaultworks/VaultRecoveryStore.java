@@ -22,7 +22,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/** Failure evidence only: this is deliberately not a write-ahead log for successful transfers. */
+/**
+ * Durable transfer evidence. The existing failure path writes OPEN incidents.
+ * The PREPARED state is a *dormant* prerequisite for future pre-mutation
+ * journaling: no gameplay path creates one until cross-save durability is
+ * implemented and verified. Never mark PREPARED intents resolved just because
+ * an in-memory operation returned successfully.
+ */
 final class VaultRecoveryStore {
     private static final String HEADER = "VAULTWORKS_RECOVERY_1 ";
     private static final long MAX_RECORD_BYTES = 16 * 1024 * 1024;
@@ -30,7 +36,12 @@ final class VaultRecoveryStore {
     private final Map<UUID, Incident> incidents = new HashMap<>();
     private final List<String> faults = new ArrayList<>();
 
-    record Incident(UUID id, Set<UUID> cells, String root, String operation) { }
+    record Incident(UUID id, Set<UUID> cells, String root, String operation, String state) { }
+
+    /** Read-only, bounded metadata: no serialized item payload is returned. */
+    record IncidentDetails(Incident incident, String created, String player,
+                           int inventoryBeforeSlots, int inventoryObservedSlots,
+                           int capturedCellSnapshots) { }
 
     VaultRecoveryStore(Path directory) {
         this.directory = directory;
@@ -48,9 +59,9 @@ final class VaultRecoveryStore {
                             Properties record = read(path);
                             Incident incident = parse(record);
                             if (!name.equals(incident.id() + ".incident")) throw new IOException("Record ID mismatch");
-                            String state = record.getProperty("state", "open");
+                            String state = incident.state();
                             if (state.equals("resolved")) continue;
-                            if (!state.equals("open")) throw new IOException("Unknown recovery state");
+                            if (!state.equals("open") && !state.equals("prepared")) throw new IOException("Unknown recovery state");
                             if (incidents.putIfAbsent(incident.id(), incident) != null) throw new IOException("Duplicate record ID");
                         } catch (IOException | RuntimeException failure) {
                             faults.add("Unreadable recovery record: " + name);
@@ -64,15 +75,41 @@ final class VaultRecoveryStore {
     }
 
     UUID record(Properties evidence, Set<UUID> cells, String root, String operation) throws IOException {
+        return createRecord(evidence, cells, root, operation, "open");
+    }
+
+    /**
+     * Persist a PREPARED intent before touching any player or cell storage.
+     * This is intentionally not called from live transfers yet. A prepared
+     * intent survives restart, holds its participants locked and requires
+     * offline reconciliation, even if the initiating Java call had completed.
+     *
+     * <p>Integration must first establish a durable, cross-save commit barrier:
+     * neither a successful return nor an in-memory rollback is enough to
+     * prove that both player inventory and cell state survived process loss.</p>
+     */
+    UUID prepare(Properties evidence, Set<UUID> cells, String root, String operation) throws IOException {
+        if (evidence == null || cells == null || cells.isEmpty()
+                || root == null || root.isBlank() || operation == null || operation.isBlank()) {
+            throw new IllegalArgumentException("Prepared transfer must name its participants, root and operation");
+        }
+        if (globallyLocked() || locked(root) || cells.stream().anyMatch(this::locked)) {
+            throw new IllegalStateException("A prepared transfer cannot overlap unresolved recovery locks");
+        }
+        return createRecord(evidence, cells, root, operation, "prepared");
+    }
+
+    private UUID createRecord(Properties evidence, Set<UUID> cells, String root,
+                              String operation, String state) throws IOException {
         UUID id = UUID.randomUUID();
         // Install the lock before any serialization or filesystem operation can fail.
-        incidents.put(id, new Incident(id, Set.copyOf(cells), root, operation));
+        incidents.put(id, new Incident(id, Set.copyOf(cells), root, operation, state));
         evidence.setProperty("id", id.toString());
         evidence.setProperty("cells", cells.stream().map(UUID::toString).sorted().collect(Collectors.joining(",")));
         evidence.setProperty("root", root);
         evidence.setProperty("operation", operation);
         evidence.setProperty("created", java.time.Instant.now().toString());
-        evidence.setProperty("state", "open");
+        evidence.setProperty("state", state);
         try {
             persist(id, evidence);
             return id;
@@ -107,6 +144,9 @@ final class VaultRecoveryStore {
         try {
             Properties evidence = read(directory.resolve(id + ".incident"));
             if (!parse(evidence).id().equals(id)) throw new IOException("Resolution ID mismatch");
+            if (!"open".equals(evidence.getProperty("state"))) {
+                throw new IOException("Prepared or already-resolved transfer cannot be finalized by rollback resolution");
+            }
             evidence.setProperty("state", "resolved");
             evidence.setProperty("resolved", java.time.Instant.now().toString());
             persist(id, evidence);
@@ -135,13 +175,69 @@ final class VaultRecoveryStore {
     List<Incident> incidents() { return incidents.values().stream().sorted(java.util.Comparator.comparing(i -> i.id().toString())).toList(); }
     List<String> faults() { return List.copyOf(faults); }
 
+    /**
+     * Inspect a known unresolved record. Never return item bytes or modify
+     * inventory data. If the evidence changed after startup, fail closed.
+     */
+    IncidentDetails inspect(UUID id) throws IOException {
+        Incident active = incidents.get(id);
+        if (active == null) {
+            return null;
+        }
+        try {
+            Properties evidence = read(directory.resolve(id + ".incident"));
+            if (!active.equals(parse(evidence))) {
+                throw new IOException("Recovery incident changed since startup");
+            }
+            int snapshots = 0;
+            for (int index = 0; index < active.cells().size(); index++) {
+                if (evidence.containsKey("cell." + index + ".before.id")) {
+                    snapshots++;
+                }
+            }
+            return new IncidentDetails(
+                    active,
+                    evidence.getProperty("created", "unknown"),
+                    evidence.getProperty("player", "unavailable"),
+                    slots(evidence, "inventory.before.slots"),
+                    slots(evidence, "inventory.observed.slots"),
+                    snapshots);
+        } catch (IOException | RuntimeException failure) {
+            failClosed("Recovery incident could not be verified during inspection: " + id);
+            if (failure instanceof IOException ioFailure) {
+                throw ioFailure;
+            }
+            throw new IOException("Recovery incident inspection failed", failure);
+        }
+    }
+
+    private static int slots(Properties evidence, String key) throws IOException {
+        String raw = evidence.getProperty(key);
+        if (raw == null) {
+            return -1;
+        }
+        try {
+            int count = Integer.parseInt(raw);
+            if (count < 0 || count > 1024) {
+                throw new NumberFormatException("Slot count out of range");
+            }
+            return count;
+        } catch (NumberFormatException failure) {
+            throw new IOException("Invalid inventory slot metadata: " + key, failure);
+        }
+    }
+
     private static Incident parse(Properties record) {
         UUID id = UUID.fromString(record.getProperty("id"));
         Set<UUID> cells = java.util.Arrays.stream(record.getProperty("cells").split(",")).map(UUID::fromString).collect(Collectors.toUnmodifiableSet());
         String root = java.util.Objects.requireNonNull(record.getProperty("root"));
         String operation = java.util.Objects.requireNonNull(record.getProperty("operation"));
+        String state = record.getProperty("state", "open");
+        if (!state.equals("open") && !state.equals("prepared") && !state.equals("resolved")) {
+            throw new IllegalArgumentException("Unknown recovery state");
+        }
         if (cells.isEmpty() || root.isBlank() || operation.isBlank()) throw new IllegalArgumentException("Incomplete record");
-        return new Incident(id, cells, root, operation);
+        return new Incident(id, cells, root, operation, state);
     }
 
     static Properties read(Path path) throws IOException {
