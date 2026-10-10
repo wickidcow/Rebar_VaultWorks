@@ -93,8 +93,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .upstream/rebar
-          curl --fail --location --retry 3 https://github.com/pylonmc/rebar/releases/download/0.44.2-26.2/rebar-0.44.2-26.2.jar -o .upstream/rebar/rebar.jar
-          echo 'cfab37deeaa54771d7b838bdfa596a4ec8640771ffa293b573c12837bd7b423e  .upstream/rebar/rebar.jar' | sha256sum -c -
+          curl --fail --location --retry 3 https://github.com/pylonmc/rebar/releases/download/0.44.4-26.2/rebar-0.44.4-26.2.jar -o .upstream/rebar/rebar.jar
+          echo 'fd7573a3124b9836641a4e15fc85ff998b3fed894f58f5eb8002eff44d3a884b  .upstream/rebar/rebar.jar' | sha256sum -c -
 
       - name: Verify real storage operations and clean restart
         shell: bash
