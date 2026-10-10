@@ -35,29 +35,27 @@ class VaultPreparedSnapshotValidatorTest {
 
     @Test void missingInventoryOrCellSnapshotIsRejected() {
         Set<UUID> ids = Set.of(UUID.randomUUID());
-        Properties evidence = complete(ids);
-        evidence.remove("inventory.before.1");
+        Properties missingSlot = complete(ids);
+        missingSlot.remove("inventory.before.1");
         assertThrows(IllegalArgumentException.class,
-                () -> VaultPreparedSnapshotValidator.validate(evidence, ids));
-        evidence = complete(ids);
-        evidence.remove("cell.0.before.revision");
-        Properties missingRevision = evidence;
+                () -> VaultPreparedSnapshotValidator.validate(missingSlot, ids));
+        Properties missingRevision = complete(ids);
+        missingRevision.remove("cell.0.before.revision");
         assertThrows(IllegalArgumentException.class,
                 () -> VaultPreparedSnapshotValidator.validate(missingRevision, ids));
     }
 
     @Test void swappedOrExtraCellIdentitiesAreRejected() {
         Set<UUID> ids = Set.of(UUID.randomUUID(), UUID.randomUUID());
-        Properties evidence = complete(ids);
-        String first = evidence.getProperty("cell.0.before.id");
-        String second = evidence.getProperty("cell.1.before.id");
-        evidence.setProperty("cell.0.before.id", second);
-        evidence.setProperty("cell.1.before.id", first);
+        Properties swapped = complete(ids);
+        String first = swapped.getProperty("cell.0.before.id");
+        String second = swapped.getProperty("cell.1.before.id");
+        swapped.setProperty("cell.0.before.id", second);
+        swapped.setProperty("cell.1.before.id", first);
         assertThrows(IllegalArgumentException.class,
-                () -> VaultPreparedSnapshotValidator.validate(evidence, ids));
-        evidence = complete(ids);
-        evidence.setProperty("cell.2.before.id", UUID.randomUUID().toString());
-        Properties extra = evidence;
+                () -> VaultPreparedSnapshotValidator.validate(swapped, ids));
+        Properties extra = complete(ids);
+        extra.setProperty("cell.2.before.id", UUID.randomUUID().toString());
         assertThrows(IllegalArgumentException.class,
                 () -> VaultPreparedSnapshotValidator.validate(extra, ids));
     }
