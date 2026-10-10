@@ -13,7 +13,8 @@ Normal successful transfers create no recovery files. Cargo is blocked from lock
 ## Administrator diagnostics
 
 - `/vaultworks doctor` fails when recovery incidents or store faults remain.
-- `/vaultworks recovery` lists incident IDs, operation names, affected-cell counts, and the initiating world UUID and block coordinates.
+- `/vaultworks recovery` lists incident IDs, OPEN/PREPARED state, operation names, affected-cell counts, and the initiating world UUID and block coordinates.
+- `/vaultworks recovery inspect <UUID>` checks a specific incident checksum again and reports only safe metadata: creation time, state, player, participant count, and inventory/cell snapshot counts. It never prints serialized item bytes, restores contents, or unlocks storage. If validation fails, storage fails closed globally.
 - Affected cells show `LOCKED / RECOVERY`; terminals refuse access and claim-slot removal. Normal breaking and empty-cell re-keying cannot clear these locks.
 - Unaffected storage remains available. A corrupt record, incomplete `.pending` file, or `store.fault` marker locks all storage until reviewed, since the scope of the failure may be unknown.
 

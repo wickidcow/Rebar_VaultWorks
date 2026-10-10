@@ -2,6 +2,7 @@ package io.github.wickidcow.vaultworks;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
 import org.bukkit.entity.Player;
@@ -48,12 +49,49 @@ final class VaultWorksCommand implements CommandExecutor {
             sender.sendMessage(Component.text("Received a Vault Test Power Source (1 MW). Connect Rebar wiring to any side. Remove it after testing."));
             return true;
         }
-        if (args.length == 1 && args[0].equalsIgnoreCase("recovery")) {
+        if (args.length >= 1 && args[0].equalsIgnoreCase("recovery")) {
+            if (args.length == 3 && args[1].equalsIgnoreCase("inspect")) {
+                UUID id;
+                try {
+                    id = UUID.fromString(args[2]);
+                } catch (IllegalArgumentException invalid) {
+                    sender.sendMessage(Component.text("Use /vaultworks recovery inspect <incident UUID>."));
+                    return true;
+                }
+                try {
+                    VaultRecoveryStore.IncidentDetails details = plugin.recoveryStore().inspect(id);
+                    if (details == null) {
+                        sender.sendMessage(Component.text("No unresolved recovery incident matches that UUID."));
+                        return true;
+                    }
+                    sender.sendMessage(Component.text("Recovery " + details.incident().id()
+                            + " | state=" + details.incident().state().toUpperCase(java.util.Locale.ROOT)
+                            + " | operation=" + details.incident().operation()));
+                    sender.sendMessage(Component.text("Created: " + details.created()
+                            + " | player=" + details.player()
+                            + " | terminal=" + details.incident().root()));
+                    sender.sendMessage(Component.text("Participants: " + details.incident().cells().size()
+                            + " | captured cell snapshots=" + details.capturedCellSnapshots()
+                            + " | inventory before/observed slots="
+                            + details.inventoryBeforeSlots() + "/" + details.inventoryObservedSlots()));
+                    sender.sendMessage(Component.text("Read-only inspection. Stop the server, preserve a full backup, and reconcile offline. No contents were replayed or unlocked."));
+                } catch (java.io.IOException failure) {
+                    sender.sendMessage(Component.text(
+                            "Recovery evidence verification failed. Storage is locked; preserve the recovery folder and server logs."));
+                    plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                            "Recovery inspection failed", failure);
+                }
+                return true;
+            }
+            if (args.length != 1) {
+                sender.sendMessage(Component.text("Usage: /" + label + " recovery [inspect <UUID>]"));
+                return true;
+            }
             VaultRecoveryStore store = plugin.recoveryStore();
             sender.sendMessage(Component.text("Vault transfer recovery: " + store.incidents().size()
                     + " unresolved record(s); all-storage lock=" + store.globallyLocked()));
             for (VaultRecoveryStore.Incident incident : store.incidents()) {
-                sender.sendMessage(Component.text(incident.id() + " | " + incident.operation()
+                sender.sendMessage(Component.text(incident.id() + " | " + incident.state().toUpperCase(java.util.Locale.ROOT) + " | " + incident.operation()
                         + " | cells=" + incident.cells().size() + " | location=" + incident.root()));
             }
             for (String fault : store.faults()) sender.sendMessage(Component.text(fault));
@@ -63,7 +101,7 @@ final class VaultWorksCommand implements CommandExecutor {
             return true;
         }
         if (args.length != 1 || !args[0].equalsIgnoreCase("doctor")) {
-            sender.sendMessage(Component.text("Usage: /" + label + " doctor | recovery | testpower"));
+            sender.sendMessage(Component.text("Usage: /" + label + " doctor | recovery [inspect <UUID>] | testpower"));
             return true;
         }
 
@@ -117,6 +155,11 @@ final class VaultWorksCommand implements CommandExecutor {
         if (VaultEndpointRegistry.conflictedCount() > 0) {
             failures.add(VaultEndpointRegistry.conflictedCount() + " loaded Vault Cells have locked duplicate identities");
         }
+        long prepared = plugin.recoveryStore().incidents().stream()
+                .filter(incident -> incident.state().equals("prepared")).count();
+        long open = plugin.recoveryStore().incidents().size() - prepared;
+        sender.sendMessage(Component.text("Recovery: open=" + open + " | prepared=" + prepared
+                + " | global-lock=" + plugin.recoveryStore().globallyLocked()));
         if (!plugin.recoveryStore().incidents().isEmpty() || plugin.recoveryStore().globallyLocked()) {
             failures.add("unresolved transfer recovery; run /vaultworks recovery");
         }
