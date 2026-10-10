@@ -90,4 +90,57 @@ class VaultRecoveryStoreTest {
         store.failClosed("serializer failed before evidence could be captured");
         assertTrue(new VaultRecoveryStore(directory).globallyLocked());
     }
+
+    @Test void preparedIntentSurvivesRestartAndLocksEveryParticipant() throws Exception {
+        VaultRecoveryStore store = new VaultRecoveryStore(directory);
+        UUID first = UUID.randomUUID(), second = UUID.randomUUID();
+        Properties before = new Properties();
+        before.setProperty("inventory.before.0", "serialized custom stack");
+        UUID id = store.prepare(before, Set.of(first, second), "world:5:6:7", "terminal withdrawal");
+
+        assertEquals("prepared",
+                VaultRecoveryStore.read(directory.resolve(id + ".incident")).getProperty("state"));
+
+        VaultRecoveryStore reopened = new VaultRecoveryStore(directory);
+        assertFalse(reopened.globallyLocked());
+        assertTrue(reopened.locked(first));
+        assertTrue(reopened.locked(second));
+        assertTrue(reopened.locked("world:5:6:7"));
+        assertEquals(1, reopened.incidents().size());
+        assertEquals("serialized custom stack",
+                VaultRecoveryStore.read(directory.resolve(id + ".incident"))
+                        .getProperty("inventory.before.0"));
+    }
+
+    @Test void preparedIntentCannotUseFailedTransferResolutionShortcut() throws Exception {
+        VaultRecoveryStore store = new VaultRecoveryStore(directory);
+        UUID cell = UUID.randomUUID();
+        UUID id = store.prepare(new Properties(), Set.of(cell), "root", "deposit");
+        assertThrows(java.io.IOException.class, () -> store.resolved(id));
+
+        // A fault survives restart; a nominal "commit" is not a durability proof.
+        assertTrue(store.globallyLocked());
+        VaultRecoveryStore reopened = new VaultRecoveryStore(directory);
+        assertTrue(reopened.globallyLocked());
+        assertEquals("prepared",
+                VaultRecoveryStore.read(directory.resolve(id + ".incident")).getProperty("state"));
+    }
+
+    @Test void incompletePreparedMetadataCannotCreateAnUnscopedLock() {
+        VaultRecoveryStore store = new VaultRecoveryStore(directory);
+        assertThrows(IllegalArgumentException.class,
+                () -> store.prepare(new Properties(), Set.of(), "root", "deposit"));
+        assertThrows(IllegalArgumentException.class,
+                () -> store.prepare(new Properties(), Set.of(UUID.randomUUID()), "", "deposit"));
+        assertTrue(store.incidents().isEmpty());
+        assertFalse(store.globallyLocked());
+    }
+
+    @Test void tamperedPreparedIntentFailsClosedOnRestart() throws Exception {
+        VaultRecoveryStore store = new VaultRecoveryStore(directory);
+        UUID id = store.prepare(new Properties(), Set.of(UUID.randomUUID()), "root", "withdrawal");
+        Path file = directory.resolve(id + ".incident");
+        Files.writeString(file, Files.readString(file) + "other=true\\n");
+        assertTrue(new VaultRecoveryStore(directory).globallyLocked());
+    }
 }
