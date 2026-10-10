@@ -143,4 +143,32 @@ class VaultRecoveryStoreTest {
         Files.writeString(file, Files.readString(file) + "other=true\\n");
         assertTrue(new VaultRecoveryStore(directory).globallyLocked());
     }
+
+    @Test void preparedIntentRejectsOverlappingEndpointAndTerminalLocks() throws Exception {
+        VaultRecoveryStore store = new VaultRecoveryStore(directory);
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+
+        store.prepare(new Properties(), Set.of(first), "terminal-a", "withdrawal");
+        assertThrows(IllegalStateException.class,
+                () -> store.prepare(new Properties(), Set.of(first), "terminal-b", "deposit"));
+        assertThrows(IllegalStateException.class,
+                () -> store.prepare(new Properties(), Set.of(second), "terminal-a", "deposit"));
+        // A disjoint terminal and cell remain available.
+        store.prepare(new Properties(), Set.of(second), "terminal-b", "deposit");
+        assertEquals(2, store.incidents().size());
+
+        VaultRecoveryStore reopened = new VaultRecoveryStore(directory);
+        assertThrows(IllegalStateException.class,
+                () -> reopened.prepare(new Properties(), Set.of(first), "terminal-c", "deposit"));
+        assertEquals(2, reopened.incidents().size());
+    }
+
+    @Test void preparedIntentRejectsGlobalStoreFaultWithoutWritingMoreEvidence() {
+        VaultRecoveryStore store = new VaultRecoveryStore(directory);
+        store.failClosed("unresolved recovery store fault");
+        assertThrows(IllegalStateException.class,
+                () -> store.prepare(new Properties(), Set.of(UUID.randomUUID()), "root", "deposit"));
+        assertTrue(store.incidents().isEmpty());
+    }
 }
