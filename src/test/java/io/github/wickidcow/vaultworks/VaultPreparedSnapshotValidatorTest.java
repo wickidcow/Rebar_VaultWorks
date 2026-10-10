@@ -89,4 +89,25 @@ class VaultPreparedSnapshotValidatorTest {
         assertThrows(IllegalArgumentException.class,
                 () -> VaultPreparedSnapshotValidator.validate(complete(Set.of()), Set.of()));
     }
+
+    @Test void undeclaredInventoryAndLegacyCellSlotsAreRejected() {
+        Set<UUID> participants = Set.of(UUID.randomUUID());
+        Properties extraInventory = complete(participants);
+        extraInventory.setProperty("inventory.before.2", "empty");
+        assertThrows(IllegalArgumentException.class,
+                () -> VaultPreparedSnapshotValidator.validate(extraInventory, participants));
+
+        Properties extraCellMetadata = complete(participants);
+        extraCellMetadata.setProperty("cell.1.before.amount", "0");
+        assertThrows(IllegalArgumentException.class,
+                () -> VaultPreparedSnapshotValidator.validate(extraCellMetadata, participants));
+    }
+
+    @Test void adversarialSnapshotIndexesCannotOverflowValidation() {
+        Set<UUID> participants = Set.of(UUID.randomUUID());
+        Properties extra = complete(participants);
+        extra.setProperty("cell.999999999999999999999999999.before.item", "empty");
+        assertThrows(IllegalArgumentException.class,
+                () -> VaultPreparedSnapshotValidator.validate(extra, participants));
+    }
 }
