@@ -19,6 +19,7 @@ public final class VaultWorksContentCatalog {
             "vault_antenna",
             "dimensional_vault_antenna",
             "wireless_vault_terminal",
+            "vault_containment_dolly",
             "vault_power_base",
             "vault_cargo_node",
             "basic_vault_cell",
