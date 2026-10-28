@@ -20,8 +20,9 @@ storage:
   overflow-purge-default: false
 
   # Native Vault blocks take ~75 seconds to break in Survival, regardless of pickaxe.
-  # Sneak + left-click with any pickaxe to break an actual VaultWorks cell immediately.
-  # Only normal player block-breaking is accelerated; Towny/WorldGuard can still cancel.
+  # Sneak + left-click WITH A VAULT CONTAINMENT DOLLY for immediate pickup.
+  # Ordinary or renamed pickaxes do NOT trigger it. The normal player block
+  # breaking event still fires, so Towny/WorldGuard can cancel the action.
   # A transfer-recovery-locked cell cannot be picked up.
   fast-sneak-pickup: true
 

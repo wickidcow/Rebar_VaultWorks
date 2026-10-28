@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 class VaultPickupPolicyTest {
-    @Test void deliberateSurvivalSneakPickaxeCanTriggerFastPickup() {
+    @Test void deliberateSurvivalSneakContainmentDollyCanTriggerFastPickup() {
         assertTrue(VaultPickupPolicy.fastBreak(true, true, true, true, false));
     }
 
