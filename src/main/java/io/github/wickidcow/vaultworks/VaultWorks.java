@@ -59,6 +59,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         migrateConfig();
         Bukkit.getPluginManager().registerEvents(new VaultCellFastBreakListener(this), this);
         Bukkit.getPluginManager().registerEvents(new VaultCargoTitleListener(), this);
+        Bukkit.getPluginManager().registerEvents(new VaultNetworkTitleListener(this), this);
         double legacyWatts = getConfig().getDouble("power.watts", 48.0D);
         policy = new PowerPolicy(
                 getConfig().getDouble("power.base-watts", legacyWatts),
@@ -339,6 +340,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         deleteConfirmations.clear();
         wirelessRegistry.clear();
         VaultEndpointRegistry.clear();
+        VaultTerminalReachability.invalidate();
         storagePolicy = null;
         wirelessPolicy = null;
         instance = null;

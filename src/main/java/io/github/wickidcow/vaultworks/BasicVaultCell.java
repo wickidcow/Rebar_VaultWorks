@@ -337,8 +337,10 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     private VaultCellTitleState titleState() {
         VaultPowerBase base = getPowerBase();
-        return VaultCellTitleState.of(base != null && base.isOnline(),
-                hasAttachedCargoNode(), hasRecoveryLock() || identityConflict);
+        boolean powered = base != null && base.isOnline();
+        boolean terminal = powered && VaultTerminalReachability.connected(base);
+        return VaultCellTitleState.of(powered, hasAttachedCargoNode(),
+                terminal, hasRecoveryLock() || identityConflict);
     }
 
     protected String shortGuiName() {
@@ -347,6 +349,13 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     void refreshCargoStatus() {
         refreshGuiItems();
+    }
+
+    /** Notify only open GUIs after a Vault Link/Terminal topology change. */
+    void refreshNetworkStatus() {
+        if (vaultGui != null && !vaultGui.getWindows().isEmpty()) {
+            refreshGuiItems();
+        }
     }
 
     void updatePowerVisual(boolean online) {
@@ -1161,6 +1170,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                             Component.text("Used: " + percent + "%"),
                             Component.text("Power: " + ((getPowerBase() != null && getPowerBase().isOnline()) ? "ON" : "OFF")),
                             Component.text("Rear Cargo Node: " + (hasAttachedCargoNode() ? "ATTACHED" : "NOT ATTACHED")),
+                            Component.text("Vault Terminal: " + (VaultTerminalReachability.connected(getPowerBase())
+                                    ? "CONNECTED" : "NOT CONNECTED")),
                             Component.text("Column limit: " + MAX_COLUMN_HEIGHT + " Vault Cells per Power Base"),
                             Component.text("Endpoint: " + endpointId.toString().substring(0, 8)
                                     + " / rev " + endpointRevision),
