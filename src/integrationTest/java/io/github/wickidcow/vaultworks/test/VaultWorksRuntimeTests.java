@@ -576,7 +576,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
             VaultWorks.instance().getConfig().set("display.hologram-default-enabled", true);
             BasicVaultCell cell = (BasicVaultCell) place(tier, 8, 101, 2);
             power(base, true);
-            cell.updatePowerVisual(true);
+            call(cell, "updatePowerVisual", true);
             Gui gui = cell.createGui();
 
             check(cell.isHologramEnabled()
@@ -621,12 +621,12 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     tier + " hologram toggle ON restores exactly one live display");
 
             power(base, false);
-            cell.updatePowerVisual(false);
+            call(cell, "updatePowerVisual", false);
             check(hologramDisplay(cell) == null, tier + " power loss hides registered hologram");
             click(gui, 40, player, ClickType.LEFT);
             check(!cell.isHologramEnabled(), tier + " hologram preference can be set while power is offline");
             power(base, true);
-            cell.updatePowerVisual(true);
+            call(cell, "updatePowerVisual", true);
             check(hologramDisplay(cell) == null, tier + " disabled hologram stays hidden when power returns");
 
             ItemStack packed = cell.getDropItem(new BlockBreakContext.PluginBreak(cell.getBlock()));
