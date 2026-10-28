@@ -85,6 +85,11 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     try {
                         check(liveBase.isOnline(), "test source supplies real Rebar network power");
                         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "vaultworks doctor");
+                        if (Boolean.getBoolean("vaultworks.expectGridworks")) {
+                            check(Bukkit.getPluginManager().isPluginEnabled("GridWorks"),
+                                    "GridWorks is enabled alongside VaultWorks on real Paper/Rebar");
+                            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "gridworks doctor");
+                        }
                         createFailedRecoveryCheckpoint();
                         getLogger().info("VAULTWORKS RUNTIME PASS: " + checks + " checks");
                         Files.writeString(getDataFolder().toPath().resolve("result.txt"), "PASS " + checks);

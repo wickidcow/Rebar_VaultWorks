@@ -61,6 +61,11 @@ bukkit {
 
 tasks.runServer {
     providers.gradleProperty("rebar.serverJar").orNull?.let { pluginJars.from(file(it)) }
+    // Opt-in combined plugin test only. GridWorks is never a production dependency.
+    providers.gradleProperty("gridworks.serverJar").orNull?.let {
+        pluginJars.from(file(it))
+        jvmArgs("-Dvaultworks.expectGridworks=true")
+    }
     minecraftVersion(minecraftVersion)
     maxHeapSize = "1G"
     jvmArgs("-Dcom.mojang.eula.agree=true", "-Dterminal.jline=false", "-Dterminal.ansi=false")
