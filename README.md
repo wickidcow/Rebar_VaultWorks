@@ -29,7 +29,7 @@ Available now:
 - **Dimensional Vault Antenna** — permits cross-world/dimension access while the source transmitter is loaded and powered.
 - **Wireless Vault Terminal** — bindable portable terminal for player inventory access away from the storage room.
 - Persistent Vault endpoint UUIDs and monotonic storage revisions for safe identity/change tracking.
-- Fixed-direction stored-item display inside each Vault, with randomized vanilla trial-loot preview disabled.
+- Fixed-direction stored-item hologram inside each Vault, with randomized vanilla trial-loot preview disabled. A per-Cell Item Frame/Glow Item Frame GUI button toggles the display; it defaults ON by config and is visible only when registered, stocked and powered. The item **glows only when its powered Vault reaches a loaded VaultWorks Terminal** (Cargo alone never glows).
 - Central Manual Transfer Slot in both Vault Cell GUIs for direct cursor deposits and one-item/stack pickups.
 - Quick deposit, quick withdraw, clear-registration control and per-Vault overflow-purge toggle.
 - Filled Vault Cells keep their stored item, count and overflow setting inside the dropped Vault item when broken, so the cell can be moved and placed elsewhere without dumping its contents.
@@ -84,6 +84,21 @@ Stack limits and available inventory space are respected. Basic cells retain lef
 **Manual Transfer Slot (center of either Vault Cell GUI):** With a matching item on your cursor, left-click deposits the held stack and right-click deposits **one**. With an empty cursor, left-click takes up to **one normal item stack** and right-click takes **one**. Depositing into an unregistered empty Vault also registers that exact item identity. Wrong items, nested Vault Cells, unavailable power, recovery/identity locks, and full storage are rejected without consuming the cursor stack. The manual slot never purges overflow; excess stays on the cursor. It is a click-to-transfer control, not a separate persistent inventory slot. The cursor and Vault state are included in synchronous failure compensation, but abrupt-crash atomicity is not yet guaranteed.
 
 Healthy empty cells stack up to 64 per tier. Unregistered empty drops with default overflow settings stack with freshly crafted cells. Registered empty cells stack only when their item registration and overflow settings match. Empty portable stacks receive fresh endpoint IDs when placed. Filled cells, cells with legacy recovery contents, and identity-conflicted or transfer-recovery-locked cells remain unstackable and preserve their endpoint IDs.
+
+### Per-Vault item hologram
+
+Every Basic and Advanced Vault Cell has an **Item Hologram: ON/OFF** button on the bottom row. When ON, the centered floating item appears **only when a registered item has a positive stored quantity and the Vault Power Base is powered**. The hologram is a protected Bukkit `ItemDisplay`, not an inventory item or a second Item Frame entity, so players cannot remove or duplicate it by clicking.
+
+If the powered Vault's own VaultWorks network can reach a loaded **Vault Terminal** (including a Transmitter acting as a terminal), the item receives a bright glow. A rear Rebar Cargo Node alone does **not** make the floating item glow. Glow automatically changes when VaultWorks links, Terminal reachability or power change. No hologram is rendered when the Vault is unpowered, unregistered, empty, or toggled OFF.
+
+New Vault Cells (and existing cells without a saved preference) default to ON with:
+
+```yaml
+display:
+  hologram-default-enabled: true
+```
+
+Set this to `false` to change the default for cells that have no saved preference. Each cell's chosen ON/OFF state is persisted with Rebar block data and carried inside its portable drop, including empty cells that have customized the setting. Changing the config does not overwrite an explicit per-cell selection. The Hologram button is a visual setting; it does not affect the stored item, terminal access or Cargo transfers.
 
 ### Permanently empty a cell
 
