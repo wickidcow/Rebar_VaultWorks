@@ -365,8 +365,8 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
 
             Gui gui = cell.createGui();
             check(gui.getItem(22) != null
-                            && gui.getItem(22).getItemProvider(player).get().getType() == Material.HOPPER,
-                    tier + " has a central manual transfer slot");
+                            && gui.getItem(22).getItemProvider(player).get().getType() == Material.VAULT,
+                    tier + " has a central Vault-icon manual transfer slot");
 
             ItemStack sample = new ItemStack(Material.DIAMOND, 5);
             sample.editMeta(meta -> meta.displayName(
@@ -481,6 +481,18 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                             && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GREEN),
                     tier + " loaded rear Cargo Node + power makes the title green");
 
+
+            // A terminal is a true VaultWorks network node, not a cargo pipe.
+            // Green must outrank the light-green power+Cargo status.
+            VaultTerminal terminal = (VaultTerminal) place("vault_terminal", 9, 100, 2);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Terminal")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.DARK_GREEN),
+                    tier + " powered Terminal + Cargo is green with network priority");
+            BlockStorage.breakBlock(terminal);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Pwr+Cargo")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GREEN),
+                    tier + " disconnecting a Terminal restores light green Cargo priority");
+
             power(base, false);
             check(plain.apply(cell.getGuiTitle()).equals(name + " • Cargo")
                             && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.TextColor.color(0x55AAFF)),
@@ -492,6 +504,20 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     tier + " removing cargo while unpowered returns title to gray");
 
             power(base, true);
+
+            // The same Vault Link topology used by Terminal transfers is checked:
+            // a powered cell is green even without a rear Cargo Node.
+            VaultLinkCable link = (VaultLinkCable) place("vault_link", 9, 100, 2);
+            VaultTerminal linkedTerminal = (VaultTerminal) place("vault_terminal", 10, 100, 2);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Terminal")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.DARK_GREEN),
+                    tier + " powered cell reaches Terminal through a Vault Link with no Cargo");
+            BlockStorage.breakBlock(link);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Powered")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.YELLOW),
+                    tier + " breaking the Vault Link disconnects Terminal and restores yellow");
+            BlockStorage.breakBlock(linkedTerminal);
+
             ItemStack sample = new ItemStack(Material.DIAMOND, 7);
             sample.editMeta(meta -> {
                 meta.displayName(net.kyori.adventure.text.Component.text("Custom storage key"));
@@ -499,6 +525,17 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                         NamespacedKey.fromString("vaultworks:preview_test"),
                         PersistentDataType.STRING, "preserved");
             });
+
+            // An unpowered linked network must NOT be green; only powered
+            // cells with usable network access receive Terminal-green titles.
+            VaultTerminal unpoweredTerminal = (VaultTerminal) place("vault_terminal", 9, 100, 2);
+            power(base, false);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Offline")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GRAY),
+                    tier + " connected but unpowered Terminal is not a green cell");
+            BlockStorage.breakBlock(unpoweredTerminal);
+            power(base, true);
+
             call(cell, "setStoredState", sample, 99L);
             ItemStack preview = gui.getItem(22).getItemProvider(player).get();
             check(preview.getType() == Material.DIAMOND

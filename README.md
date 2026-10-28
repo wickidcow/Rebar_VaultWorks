@@ -56,15 +56,18 @@ The Power Base uses a lit copper-bulb shell as the safe vanilla fallback for the
 
 Both tiers require a powered Vault Power Base. Item names remain **Basic Powered Vault Cell** and **Advanced Powered Vault Cell**; their existing IDs remain `basic_vault_cell` and `powered_vault_cell`. GUI titles are shortened to **Basic Vault Cell** and **Adv Vault Cell** so they fit without running outside the inventory frame.
 
-| GUI title color | Power | Rear Vault Cargo Node | Title suffix |
-| --- | --- | --- | --- |
-| Green | On | Attached | Pwr+Cargo |
-| Yellow | On | Not attached | Powered |
-| Bright blue | Off | Attached | Cargo |
-| Gray | Off | Not attached | Offline |
-| Red | Any | Any | Locked (identity or recovery lock) |
+| GUI title color | Condition | Title suffix |
+| --- | --- | --- |
+| Green (dark green) | Powered **and** connected to a loaded Vault Terminal through VaultWorks links | Terminal |
+| Light green | Powered + correctly attached rear Cargo Node, no Terminal connection | Pwr+Cargo |
+| Yellow | Powered only, no Terminal or Cargo Node | Powered |
+| Bright blue | Rear Cargo Node attached but power offline | Cargo |
+| Gray | No power and no attached Cargo Node | Offline |
+| Red | Recovery lock or duplicated endpoint identity (overrides all) | Locked |
 
-**Cargo attached** means an appropriately facing **Vault Cargo Node physically connected to the rear of the Vault Cell**. This indicator does not promise that ducts have a complete route or that an unpowered cell can move items. The title refreshes when power or the rear node changes, without polling or reopening the inventory.
+The precedence is **red > terminal-green > cargo-light-green > yellow > blue > gray**. A powered terminal connection takes precedence over Cargo, even when both systems are connected. A Vault Terminal or Vault Transmitter acting as a terminal counts only when reachable from this cell's Power Base via the **existing loaded VaultWorks topology**, including Vault Link Cables, Vault Index, and adjacent Power Bases. If the search hits its configured node limit, VaultWorks does not claim a proven connection.
+
+**Cargo attached** means an appropriately facing **Vault Cargo Node physically connected to the rear of the Vault Cell**. It does not promise that ducts have a complete route or that an unpowered cell can move items. GUI titles refresh on power, cargo, and VaultWorks network topology changes, without a repeating scan or closing the inventory.
 
 The center **Manual Transfer Slot** shows a Vault block icon when the cell is not registered. Once an item is registered it displays a single cloned preview of that exact stored item, including custom metadata. This is still a controlled InvUI button rather than a real inventory slot: clicking moves items through guarded transfers, not by taking the preview. The separate **Quick Deposit** button keeps its Hopper icon.
 
