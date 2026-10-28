@@ -65,6 +65,7 @@ Design intent:
 - high but bounded item count;
 - one item consumed to register the Vault;
 - portable stored state when broken and replaced;
+- reusable **Vault Containment Dolly**, an unbreakable Netherite Pickaxe-style Rebar tool for fast sneak + left-click pickup with normal Towny and Rebar protection;
 - manual controls and automation available only while its column is powered.
 
 ### Vault Cargo Node

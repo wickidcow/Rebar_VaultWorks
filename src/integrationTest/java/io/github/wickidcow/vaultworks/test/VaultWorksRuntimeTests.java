@@ -463,6 +463,15 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     default -> Proxy.getInvocationHandler(player).invoke(player, method, args);
                 });
         ItemStack pickaxe = new ItemStack(Material.DIAMOND_PICKAXE);
+        ItemStack dolly = Objects.requireNonNull(RebarRegistry.ITEMS.get(
+                NamespacedKey.fromString("vaultworks:vault_containment_dolly"))).createNewItemStack();
+        check(dolly.getType() == Material.NETHERITE_PICKAXE
+                && dolly.getItemMeta().isUnbreakable(), "containment dolly looks like a reusable pickaxe");
+        check(VaultContainmentDolly.isDolly(dolly), "registered containment dolly authenticates");
+        check(!VaultContainmentDolly.isDolly(pickaxe), "ordinary pickaxe is not a containment dolly");
+        ItemStack spoof = new ItemStack(Material.NETHERITE_PICKAXE);
+        spoof.editMeta(meta -> meta.displayName(net.kyori.adventure.text.Component.text("Vault Containment Dolly")));
+        check(!VaultContainmentDolly.isDolly(spoof), "renamed pickaxe does not impersonate the containment dolly");
         for (String tier : List.of("basic_vault_cell", "powered_vault_cell")) {
             BasicVaultCell vault = (BasicVaultCell) place(tier, 8, 101, 2);
             power(base, true);
@@ -473,10 +482,25 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
             Bukkit.getPluginManager().callEvent(normal);
             check(!normal.getInstaBreak(), tier + " regular mining stays unchanged");
 
-            org.bukkit.event.block.BlockDamageEvent quick = new org.bukkit.event.block.BlockDamageEvent(
+            org.bukkit.event.block.BlockDamageEvent regularPickaxe = new org.bukkit.event.block.BlockDamageEvent(
                     sneaking, vault.getBlock(), pickaxe, false);
+            Bukkit.getPluginManager().callEvent(regularPickaxe);
+            check(!regularPickaxe.getInstaBreak(), tier + " ordinary sneaking pickaxe is not authorized");
+
+            org.bukkit.event.block.BlockDamageEvent notSneaking = new org.bukkit.event.block.BlockDamageEvent(
+                    player, vault.getBlock(), dolly, false);
+            Bukkit.getPluginManager().callEvent(notSneaking);
+            check(!notSneaking.getInstaBreak(), tier + " dolly requires deliberate sneaking");
+
+            org.bukkit.event.block.BlockDamageEvent quick = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), dolly, false);
             Bukkit.getPluginManager().callEvent(quick);
-            check(quick.getInstaBreak(), tier + " sneaking with pickaxe enables quick pickup");
+            check(quick.getInstaBreak(), tier + " authentic dolly instantly picks up the cell");
+
+            org.bukkit.event.block.BlockDamageEvent fake = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), spoof, false);
+            Bukkit.getPluginManager().callEvent(fake);
+            check(!fake.getInstaBreak(), tier + " renamed fake dolly does not instantly break a Vault");
 
             org.bukkit.event.block.BlockDamageEvent wrongTool = new org.bukkit.event.block.BlockDamageEvent(
                     sneaking, vault.getBlock(), new ItemStack(Material.STICK), false);
@@ -484,12 +508,12 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
             check(!wrongTool.getInstaBreak(), tier + " non-pickaxes cannot instant-break cells");
 
             org.bukkit.event.block.BlockDamageEvent creativeEvent = new org.bukkit.event.block.BlockDamageEvent(
-                    creative, vault.getBlock(), pickaxe, false);
+                    creative, vault.getBlock(), dolly, false);
             Bukkit.getPluginManager().callEvent(creativeEvent);
             check(!creativeEvent.getInstaBreak(), tier + " creative mode never uses survival pickup");
 
             org.bukkit.event.block.BlockDamageEvent cancelled = new org.bukkit.event.block.BlockDamageEvent(
-                    sneaking, vault.getBlock(), pickaxe, false);
+                    sneaking, vault.getBlock(), dolly, false);
             cancelled.setCancelled(true);
             Bukkit.getPluginManager().callEvent(cancelled);
             check(!cancelled.getInstaBreak() && BlockStorage.get(vault.getBlock()) == vault,
@@ -498,7 +522,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
             VaultWorks.instance().getConfig().set("storage.fast-sneak-pickup", false);
             try {
                 org.bukkit.event.block.BlockDamageEvent disabled = new org.bukkit.event.block.BlockDamageEvent(
-                        sneaking, vault.getBlock(), pickaxe, false);
+                        sneaking, vault.getBlock(), dolly, false);
                 Bukkit.getPluginManager().callEvent(disabled);
                 check(!disabled.getInstaBreak(), tier + " configuration can disable quick pickup");
             } finally {
@@ -507,7 +531,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
 
             power(base, false);
             org.bukkit.event.block.BlockDamageEvent offline = new org.bukkit.event.block.BlockDamageEvent(
-                    sneaking, vault.getBlock(), pickaxe, false);
+                    sneaking, vault.getBlock(), dolly, false);
             Bukkit.getPluginManager().callEvent(offline);
             check(offline.getInstaBreak(), tier + " moving an unpowered cell is allowed");
             power(base, true);
@@ -523,7 +547,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         Block unrelated = world.getBlockAt(9, 105, 2);
         unrelated.setType(Material.STONE);
         org.bukkit.event.block.BlockDamageEvent unrelatedDamage = new org.bukkit.event.block.BlockDamageEvent(
-                sneaking, unrelated, pickaxe, false);
+                sneaking, unrelated, dolly, false);
         Bukkit.getPluginManager().callEvent(unrelatedDamage);
         check(!unrelatedDamage.getInstaBreak(), "vanilla and unrelated blocks are untouched");
         unrelated.setType(Material.AIR);
