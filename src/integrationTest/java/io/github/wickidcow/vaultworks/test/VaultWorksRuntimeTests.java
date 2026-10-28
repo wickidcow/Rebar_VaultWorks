@@ -282,6 +282,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
 
         verifyRegistrationPicker();
         verifyManualCursorTransfer();
+        verifyCellGuiTitlesAndCargo();
         verifyFastVaultPickup();
         verifyManualCompensation();
 
@@ -447,6 +448,76 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         BlockStorage.breakBlock(base);
     }
 
+
+
+    private void verifyCellGuiTitlesAndCargo() throws Exception {
+        VaultPowerBase base = (VaultPowerBase) place("vault_power_base", 8, 100, 2);
+        for (String tier : List.of("basic_vault_cell", "powered_vault_cell")) {
+            BasicVaultCell cell = (BasicVaultCell) place(tier, 8, 101, 2);
+            power(base, false);
+            String name = tier.equals("basic_vault_cell") ? "Basic Vault Cell" : "Adv Vault Cell";
+            Gui gui = cell.createGui();
+            check(gui.getItem(22).getItemProvider(player).get().getType() == Material.VAULT,
+                    tier + " empty manual slot shows a Vault instead of a second Hopper");
+
+            java.util.function.Function<net.kyori.adventure.text.Component, String> plain =
+                    net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()::serialize;
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Offline")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GRAY),
+                    tier + " offline unlinked title is short and gray");
+
+            power(base, true);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Powered")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.YELLOW),
+                    tier + " powered without cargo is yellow");
+
+            org.bukkit.block.BlockFace front =
+                    ((org.bukkit.block.data.type.Vault) cell.getBlock().getBlockData()).getFacing();
+            Block rear = cell.getBlock().getRelative(front.getOppositeFace());
+            VaultCargoNode cargo = (VaultCargoNode) Objects.requireNonNull(
+                    BlockStorage.placeBlock(rear, NamespacedKey.fromString("vaultworks:vault_cargo_node")));
+            check(cargo.getFacing() == front
+                            && plain.apply(cell.getGuiTitle()).equals(name + " • Pwr+Cargo")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GREEN),
+                    tier + " loaded rear Cargo Node + power makes the title green");
+
+            power(base, false);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Cargo")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.TextColor.color(0x55AAFF)),
+                    tier + " cargo attached but power off makes title blue");
+
+            BlockStorage.breakBlock(cargo);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Offline")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GRAY),
+                    tier + " removing cargo while unpowered returns title to gray");
+
+            power(base, true);
+            ItemStack sample = new ItemStack(Material.DIAMOND, 7);
+            sample.editMeta(meta -> {
+                meta.displayName(net.kyori.adventure.text.Component.text("Custom storage key"));
+                meta.getPersistentDataContainer().set(
+                        NamespacedKey.fromString("vaultworks:preview_test"),
+                        PersistentDataType.STRING, "preserved");
+            });
+            call(cell, "setStoredState", sample, 99L);
+            ItemStack preview = gui.getItem(22).getItemProvider(player).get();
+            check(preview.getType() == Material.DIAMOND
+                            && preview.getAmount() == 1
+                            && "preserved".equals(preview.getPersistentDataContainer().get(
+                                NamespacedKey.fromString("vaultworks:preview_test"), PersistentDataType.STRING)),
+                    tier + " transfer icon displays one cloned custom stored item");
+            check(plain.apply(cell.getGuiTitle()).length() <= 30,
+                    tier + " title fits the inventory width");
+
+            call(cell, "setStoredState", null, 0L);
+            call(cell, "clearRegistration", player);
+            check(gui.getItem(22).getItemProvider(player).get().getType() == Material.VAULT,
+                    tier + " clearing registration restores the empty Vault transfer icon");
+        }
+        RebarBlock last = BlockStorage.get(world.getBlockAt(8, 101, 2));
+        if (last != null) BlockStorage.breakBlock(last);
+        BlockStorage.breakBlock(base);
+    }
 
     private void verifyFastVaultPickup() throws Exception {
         VaultPowerBase base = (VaultPowerBase) place("vault_power_base", 8, 100, 2);
