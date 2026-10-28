@@ -19,6 +19,9 @@ val minecraftVersion = providers.gradleProperty("minecraft.version").get()
 dependencies {
     compileOnly("io.github.pylonmc:rebar:$rebarVersion")
     compileOnly("io.papermc.paper:paper-api:$minecraftVersion.build.+")
+    // Unit tests for status-colored inventory titles use Adventure API types.
+    // The main plugin still treats Paper as a server-provided dependency.
+    testImplementation("io.papermc.paper:paper-api:$minecraftVersion.build.+")
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
