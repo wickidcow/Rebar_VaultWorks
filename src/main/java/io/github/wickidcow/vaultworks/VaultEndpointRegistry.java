@@ -71,6 +71,11 @@ final class VaultEndpointRegistry {
         return LOADED.values().stream().mapToInt(Set::size).sum();
     }
 
+    /** Snapshot of loaded cells for infrequent topology-change GUI updates. */
+    static java.util.List<BasicVaultCell> loadedCells() {
+        return LOADED.values().stream().flatMap(Set::stream).toList();
+    }
+
     static long conflictedCount() {
         return LOADED.values().stream().flatMap(Set::stream).filter(BasicVaultCell::hasIdentityConflict).count();
     }

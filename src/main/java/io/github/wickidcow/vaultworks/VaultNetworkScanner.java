@@ -32,6 +32,17 @@ final class VaultNetworkScanner {
         return scanView(index).snapshot();
     }
 
+    /**
+     * Uses the exact bounded, loaded-only VaultWorks topology used by Terminal
+     * transfers. A truncated traversal is not proof of a usable connection.
+     * VaultTransmitter is a VaultTerminal and is also an accessible terminal.
+     */
+    static boolean hasConnectedTerminal(VaultPowerBase base) {
+        if (base == null) return false;
+        Topology topology = collectTopology(base);
+        return !topology.truncated() && topology.hasTerminal();
+    }
+
     static VaultNetworkCells scanAccessibleCells(RebarBlock root) {
         Topology topology = collectTopology(root);
         List<BasicVaultCell> cells = new ArrayList<>();
@@ -210,9 +221,9 @@ final class VaultNetworkScanner {
     private static Topology collectTopology(RebarBlock root) {
         int maxNodes = VaultWorks.instance().storagePolicy().maxNetworkNodes();
         try {
-            if (BlockStorage.get(root.getBlock()) != root) return new Topology(0, Set.of(), false);
+            if (BlockStorage.get(root.getBlock()) != root) return new Topology(0, Set.of(), false, false);
         } catch (IllegalArgumentException unavailable) {
-            return new Topology(0, Set.of(), false);
+            return new Topology(0, Set.of(), false, false);
         }
 
         Queue<Block> queue = new ArrayDeque<>();
@@ -221,6 +232,7 @@ final class VaultNetworkScanner {
         queue.add(root.getBlock());
 
         boolean truncated = false;
+        boolean hasTerminal = false;
 
         while (!queue.isEmpty()) {
             Block block = queue.remove();
@@ -248,6 +260,9 @@ final class VaultNetworkScanner {
             if (current instanceof VaultPowerBase base) {
                 bases.add(base);
             }
+            if (current instanceof VaultTerminal) {
+                hasTerminal = true;
+            }
 
             for (BlockFace face : FACES) {
                 Block neighbor = block.getRelative(face);
@@ -272,7 +287,8 @@ final class VaultNetworkScanner {
         return new Topology(
                 Math.min(visited.size(), maxNodes),
                 bases,
-                truncated
+                truncated,
+                hasTerminal
         );
     }
 
@@ -307,7 +323,8 @@ final class VaultNetworkScanner {
     private record Topology(
             int networkNodes,
             Set<VaultPowerBase> bases,
-            boolean truncated
+            boolean truncated,
+            boolean hasTerminal
     ) {
     }
 
