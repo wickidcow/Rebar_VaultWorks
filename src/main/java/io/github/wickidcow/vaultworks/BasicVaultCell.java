@@ -75,6 +75,10 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     private boolean identityConflict;
 
     private final List<VaultButton> guiButtons = new ArrayList<>();
+    // InvUI's Rebar-managed GUI is cached per cell. Update open window titles
+    // when power or a rear Cargo Node changes, without reopening inventories.
+    private Gui vaultGui;
+    private VaultCellTitleState lastTitleState;
 
     public BasicVaultCell(@NotNull Block block, @NotNull BlockCreateContext context) {
         super(block, context);
@@ -314,6 +318,37 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         return base != null && base.isOnline();
     }
 
+    /**
+     * Cargo means the Vault has its correctly oriented, loaded rear Cargo
+     * Node attached. This does not claim an external duct route is available.
+     * Inspect only the one adjacent block; never search or load other chunks.
+     */
+    boolean hasAttachedCargoNode() {
+        if (!(getBlock().getBlockData() instanceof Vault shell)) return false;
+        BlockFace front = shell.getFacing();
+        if (front == null || !front.isCartesian() || front.getModY() != 0) return false;
+        try {
+            return BlockStorage.get(getBlock().getRelative(front.getOppositeFace()))
+                    instanceof VaultCargoNode node && node.getFacing() == front;
+        } catch (IllegalArgumentException | IllegalStateException unavailable) {
+            return false;
+        }
+    }
+
+    private VaultCellTitleState titleState() {
+        VaultPowerBase base = getPowerBase();
+        return VaultCellTitleState.of(base != null && base.isOnline(),
+                hasAttachedCargoNode(), hasRecoveryLock() || identityConflict);
+    }
+
+    protected String shortGuiName() {
+        return "Basic Vault Cell";
+    }
+
+    void refreshCargoStatus() {
+        refreshGuiItems();
+    }
+
     void updatePowerVisual(boolean online) {
         // Keep the vanilla Vault machinery inert. Power is represented by the
         // shared base plus the brightness/glow of our own floating item display.
@@ -429,6 +464,16 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     protected void refreshGuiItems() {
         guiButtons.forEach(VaultButton::refresh);
+        // Cargo transfers can refresh item buttons frequently. Only transmit
+        // a title update when the status actually changes.
+        if (vaultGui != null) {
+            VaultCellTitleState state = titleState();
+            if (lastTitleState != state) {
+                lastTitleState = state;
+                Component title = state.title(shortGuiName());
+                vaultGui.getWindows().forEach(window -> window.setTitle(title));
+            }
+        }
     }
 
     private void loadPortableState(PersistentDataContainerView pdc) {
@@ -650,7 +695,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         VaultButton recovery = remember(new RecoveryButton());
         VaultButton identity = remember(new IdentityRecoveryButton());
 
-        return Gui.builder()
+        Gui created = Gui.builder()
                 .setStructure(
                         "# # # # # # # # 0",
                         "# d # s # i # w 1",
@@ -674,6 +719,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                 .addIngredient('3', remember(new DeleteContentsButton(3)))
                 .addIngredient('4', remember(new DeleteContentsButton(4)))
                 .build();
+        vaultGui = created;
+        lastTitleState = titleState();
+        return created;
     }
 
     private <T extends VaultButton> T remember(T button) {
@@ -683,8 +731,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
 
     @Override
     public @NotNull Component getGuiTitle() {
-        return Component.text("Basic Powered Vault Cell — "
-                + (hasRecoveryLock() ? "LOCKED / RECOVERY" : identityConflict ? "LOCKED / ID CONFLICT" : (isOperational() ? "Online" : "Offline")));
+        return titleState().title(shortGuiName());
     }
 
     @Override
@@ -1106,12 +1153,14 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             long capacity = getCapacity();
             String percent = capacity <= 0L ? "0" : String.format(Locale.US, "%.1f", (storedAmount * 100.0D) / capacity);
             boolean online = isOperational();
+            VaultCellTitleState state = titleState();
             return ItemStackBuilder.of(online ? Material.COPPER_BULB : Material.EXPOSED_COPPER_BULB)
-                    .name(Component.text("Vault Status — "
-                            + (hasRecoveryLock() ? "LOCKED / RECOVERY" : identityConflict ? "LOCKED / ID CONFLICT" : (online ? "ONLINE" : "OFFLINE"))))
+                    .name(Component.text("Vault Status • " + state.label(), state.color()))
                     .lore(
                             Component.text("Stored: " + format(storedAmount) + " / " + format(capacity)),
                             Component.text("Used: " + percent + "%"),
+                            Component.text("Power: " + ((getPowerBase() != null && getPowerBase().isOnline()) ? "ON" : "OFF")),
+                            Component.text("Rear Cargo Node: " + (hasAttachedCargoNode() ? "ATTACHED" : "NOT ATTACHED")),
                             Component.text("Column limit: " + MAX_COLUMN_HEIGHT + " Vault Cells per Power Base"),
                             Component.text("Endpoint: " + endpointId.toString().substring(0, 8)
                                     + " / rev " + endpointRevision),
@@ -1164,8 +1213,13 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     private final class CursorTransferButton extends VaultButton {
         @Override
         public @NotNull ItemProvider getItemProvider(@NotNull Player viewer) {
-            return ItemStackBuilder.of(Material.HOPPER)
-                    .name(Component.text("Manual Transfer Slot"))
+            // The preview is a non-takeable InvUI button, NOT a real item slot.
+            // Never expose more than one icon or mutate the stored item stack.
+            ItemStack preview = storedItem == null ? new ItemStack(Material.VAULT) : storedItem.asOne();
+            return ItemStackBuilder.of(preview)
+                    .name(storedItem == null
+                            ? Component.text("Manual Transfer • Empty")
+                            : Component.text("Manual Transfer • ").append(storedItem.effectiveName()))
                     .lore(
                             Component.text("Hold a matching item on your cursor, then click."),
                             Component.text("With item: LEFT deposits stack, RIGHT deposits one."),
