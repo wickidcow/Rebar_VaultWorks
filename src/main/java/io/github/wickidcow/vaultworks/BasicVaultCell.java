@@ -54,6 +54,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     private static final NamespacedKey STORED_ITEM_KEY = new NamespacedKey("vaultworks", "stored_item");
     private static final NamespacedKey STORED_AMOUNT_KEY = new NamespacedKey("vaultworks", "stored_amount");
     private static final NamespacedKey PURGE_OVERFLOW_KEY = new NamespacedKey("vaultworks", "purge_overflow");
+    private static final NamespacedKey HOLOGRAM_ENABLED_KEY = new NamespacedKey("vaultworks", "hologram_enabled");
     private static final NamespacedKey LEGACY_RECOVERY_KEY = new NamespacedKey("vaultworks", "legacy_recovery");
     private static final NamespacedKey ENDPOINT_ID_KEY = new NamespacedKey("vaultworks", "endpoint_id");
     private static final NamespacedKey ENDPOINT_REVISION_KEY = new NamespacedKey("vaultworks", "endpoint_revision");
@@ -68,6 +69,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     protected ItemStack storedItem;
     protected long storedAmount;
     protected boolean purgeOverflow;
+    private boolean hologramEnabled;
+    private Boolean lastRenderedHologramVisible;
+    private Boolean lastRenderedHologramGlow;
     protected final List<ItemStack> legacyRecovery = new ArrayList<>();
 
     private UUID endpointId;
@@ -100,7 +104,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     public void postInitialise() {
         super.postInitialise();
         VaultEndpointRegistry.register(this);
-        VaultDisplayManager.update(this);
+        reconcileHologram(isOperational());
 
         VaultPowerBase base = getPowerBase();
         if (base == null) {
@@ -246,6 +250,31 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         return purgeOverflow;
     }
 
+    public boolean isHologramEnabled() {
+        return hologramEnabled;
+    }
+
+    /** Strictly a visual status; a cached, loaded-only Terminal route is required for the outline. */
+    public boolean isHologramGlowing() {
+        return VaultHologramPolicy.glowing(
+                VaultHologramPolicy.visible(hologramEnabled, isOperational(), storedItem != null, storedAmount),
+                VaultTerminalReachability.connected(getPowerBase()));
+    }
+
+    /** Updates a display only when visibility or outline state changes. Never polls. */
+    private void reconcileHologram(boolean powered) {
+        boolean visible = VaultHologramPolicy.visible(
+                hologramEnabled, powered && isOperational(), storedItem != null, storedAmount);
+        boolean glow = VaultHologramPolicy.glowing(
+                visible, VaultTerminalReachability.connected(getPowerBase()));
+        if (!java.util.Objects.equals(lastRenderedHologramVisible, visible)
+                || !java.util.Objects.equals(lastRenderedHologramGlow, glow)) {
+            VaultDisplayManager.update(this, powered);
+            lastRenderedHologramVisible = visible;
+            lastRenderedHologramGlow = glow;
+        }
+    }
+
     public boolean hasLegacyRecovery() {
         return !legacyRecovery.isEmpty();
     }
@@ -351,8 +380,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         refreshGuiItems();
     }
 
-    /** Notify only open GUIs after a Vault Link/Terminal topology change. */
+    /** Keep the hologram outline in sync even if no player has a GUI open. */
     void refreshNetworkStatus() {
+        reconcileHologram(isOperational());
         if (vaultGui != null && !vaultGui.getWindows().isEmpty()) {
             refreshGuiItems();
         }
@@ -365,7 +395,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             vault.setVaultState(Vault.State.INACTIVE);
             getBlock().setBlockData(vault, false);
         }
-        VaultDisplayManager.update(this, online);
+        reconcileHologram(online);
         refreshGuiItems();
     }
 
@@ -430,7 +460,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         storedItem = stack.asOne();
         storedAmount = 1L;
         touchRevision();
-        VaultDisplayManager.update(this);
+        reconcileHologram(isOperational());
         refreshGuiItems();
     }
 
@@ -452,6 +482,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                 : storedItem == null || !previousItem.isSimilar(storedItem);
         if (itemChanged || previousAmount != storedAmount) {
             touchRevision();
+            reconcileHologram(isOperational());
         }
     }
 
@@ -472,6 +503,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     }
 
     protected void refreshGuiItems() {
+        reconcileHologram(isOperational());
         guiButtons.forEach(VaultButton::refresh);
         // Cargo transfers can refresh item buttons frequently. Only transmit
         // a title update when the status actually changes.
@@ -488,6 +520,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
     private void loadPortableState(PersistentDataContainerView pdc) {
         boolean defaultPurge = VaultWorks.instance().getConfig().getBoolean("storage.overflow-purge-default", false);
         purgeOverflow = defaultPurge;
+        hologramEnabled = VaultWorks.instance().getConfig().getBoolean("display.hologram-default-enabled", true);
         if (pdc == null) {
             return;
         }
@@ -495,6 +528,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         ItemStack item = pdc.get(STORED_ITEM_KEY, RebarSerializers.ITEM_STACK);
         Long amount = pdc.get(STORED_AMOUNT_KEY, RebarSerializers.LONG);
         Boolean purge = pdc.get(PURGE_OVERFLOW_KEY, RebarSerializers.BOOLEAN);
+        Boolean hologram = pdc.get(HOLOGRAM_ENABLED_KEY, RebarSerializers.BOOLEAN);
         List<ItemStack> recovery = pdc.get(LEGACY_RECOVERY_KEY, ITEM_LIST_TYPE);
         UUID loadedEndpointId = pdc.get(ENDPOINT_ID_KEY, RebarSerializers.UUID);
         Long loadedRevision = pdc.get(ENDPOINT_REVISION_KEY, RebarSerializers.LONG);
@@ -512,6 +546,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         storedAmount = Math.max(0L, amount == null ? 0L : amount);
         if (purge != null) {
             purgeOverflow = purge;
+        }
+        if (hologram != null) {
+            hologramEnabled = hologram;
         }
         if (recovery != null) {
             for (ItemStack stack : recovery) {
@@ -590,6 +627,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         }
         pdc.set(STORED_AMOUNT_KEY, RebarSerializers.LONG, Math.max(0L, storedAmount));
         pdc.set(PURGE_OVERFLOW_KEY, RebarSerializers.BOOLEAN, purgeOverflow);
+        pdc.set(HOLOGRAM_ENABLED_KEY, RebarSerializers.BOOLEAN, hologramEnabled);
         pdc.set(ENDPOINT_ID_KEY, RebarSerializers.UUID, endpointId);
         pdc.set(ENDPOINT_REVISION_KEY, RebarSerializers.LONG, Math.max(0L, endpointRevision));
         pdc.set(IDENTITY_CONFLICT_KEY, RebarSerializers.BOOLEAN, identityConflict);
@@ -615,7 +653,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         ItemStack drop = getDefaultItem().createNewItemStack();
         boolean stackableEmpty = storedAmount == 0L && legacyRecovery.isEmpty() && !identityConflict && !hasRecoveryLock();
         boolean defaultPurge = VaultWorks.instance().getConfig().getBoolean("storage.overflow-purge-default", false);
-        if (stackableEmpty && storedItem == null && purgeOverflow == defaultPurge) {
+        boolean defaultHologram = VaultWorks.instance().getConfig().getBoolean("display.hologram-default-enabled", true);
+        if (stackableEmpty && storedItem == null && purgeOverflow == defaultPurge
+                && hologramEnabled == defaultHologram) {
             return drop;
         }
         drop.setData(DataComponentTypes.MAX_STACK_SIZE, stackableEmpty ? 64 : 1);
@@ -638,6 +678,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             lore.add(Component.text("Stored: empty"));
         }
         lore.add(Component.text("Overflow purge: " + (purgeOverflow ? "ON" : "OFF")));
+        lore.add(Component.text("Item hologram: " + (hologramEnabled ? "ON" : "OFF")));
         if (!stackableEmpty) lore.add(Component.text("Endpoint: " + endpointId.toString().substring(0, 8)
                 + " / rev " + endpointRevision));
         else lore.add(Component.text("Empty cells with matching settings stack up to 64."));
@@ -700,6 +741,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         VaultButton registered = remember(new RegisteredItemButton());
         VaultButton withdraw = remember(new WithdrawButton());
         VaultButton purge = remember(new PurgeButton());
+        VaultButton hologram = remember(new HologramButton());
         VaultButton clear = remember(new ClearButton());
         VaultButton recovery = remember(new RecoveryButton());
         VaultButton identity = remember(new IdentityRecoveryButton());
@@ -710,7 +752,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                         "# d # s # i # w 1",
                         "# # # # t # # # 2",
                         "# p # c # r # k 3",
-                        "# # # # # # # # 4"
+                        "# # # # h # # # 4"
                 )
                 .addIngredient('#', GuiItems.backgroundBlack())
                 .addIngredient('d', deposit)
@@ -719,6 +761,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                 .addIngredient('i', registered)
                 .addIngredient('w', withdraw)
                 .addIngredient('p', purge)
+                .addIngredient('h', hologram)
                 .addIngredient('c', clear)
                 .addIngredient('r', recovery)
                 .addIngredient('k', identity)
@@ -1026,6 +1069,35 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         refreshGuiItems();
     }
 
+    /**
+     * Presentation setting, not a storage transaction. Players may set it
+     * while the Vault is unpowered, but not while identity/recovery is locked.
+     */
+    protected void toggleHologram(Player player) {
+        try {
+            if (BlockStorage.get(getBlock()) != this
+                    || !player.getWorld().equals(getBlock().getWorld())
+                    || player.getLocation().distanceSquared(
+                            getBlock().getLocation().add(0.5D, 0.5D, 0.5D)) > 64.0D) {
+                player.closeInventory();
+                return;
+            }
+        } catch (IllegalArgumentException unavailable) {
+            player.closeInventory();
+            return;
+        }
+        if (hasRecoveryLock() || identityConflict) {
+            player.sendMessage(Component.text(
+                    "Vault is locked. Resolve its recovery or identity issue before editing hologram settings."));
+            return;
+        }
+        hologramEnabled = !hologramEnabled;
+        touchRevision();
+        reconcileHologram(isOperational());
+        refreshGuiItems();
+        player.sendMessage(Component.text("Vault item hologram " + (hologramEnabled ? "enabled." : "disabled.")));
+    }
+
     protected void togglePurge(Player player) {
         if (!requireOperational(player)) {
             return;
@@ -1170,6 +1242,8 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                             Component.text("Used: " + percent + "%"),
                             Component.text("Power: " + ((getPowerBase() != null && getPowerBase().isOnline()) ? "ON" : "OFF")),
                             Component.text("Rear Cargo Node: " + (hasAttachedCargoNode() ? "ATTACHED" : "NOT ATTACHED")),
+                            Component.text("Hologram: " + (hologramEnabled ? "ON" : "OFF")
+                                    + (isHologramGlowing() ? " (glowing)" : "")),
                             Component.text("Vault Terminal: " + (VaultTerminalReachability.connected(getPowerBase())
                                     ? "CONNECTED" : "NOT CONNECTED")),
                             Component.text("Column limit: " + MAX_COLUMN_HEIGHT + " Vault Cells per Power Base"),
@@ -1272,6 +1346,27 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         @Override
         public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
             withdraw(player, quickWithdrawAmount(clickType));
+        }
+    }
+
+    private final class HologramButton extends VaultButton {
+        @Override
+        public @NotNull ItemProvider getItemProvider(@NotNull Player viewer) {
+            return ItemStackBuilder.of(hologramEnabled ? Material.GLOW_ITEM_FRAME : Material.ITEM_FRAME)
+                    .name(Component.text("Item Hologram: " + (hologramEnabled ? "ON" : "OFF")))
+                    .lore(
+                            Component.text("Shows the registered item inside a powered Vault."),
+                            Component.text("Requires at least one stored item."),
+                            Component.text("Glows only while powered and linked to a Vault Terminal."),
+                            Component.text("Click to toggle. Setting travels with the portable Vault.")
+                    );
+        }
+
+        @Override
+        public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
+            if (clickType == ClickType.LEFT || clickType == ClickType.RIGHT) {
+                toggleHologram(player);
+            }
         }
     }
 
