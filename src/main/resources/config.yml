@@ -19,6 +19,23 @@ storage:
   # Players may enable purge per Vault Cell from its GUI.
   overflow-purge-default: false
 
+  # Native Vault blocks take ~75 seconds to break in Survival, regardless of pickaxe.
+  # Sneak + left-click WITH A VAULT CONTAINMENT DOLLY for immediate pickup.
+  # Ordinary or renamed pickaxes do NOT trigger it. The normal player block
+  # breaking event still fires, so Towny/WorldGuard can cancel the action.
+  # A transfer-recovery-locked cell cannot be picked up.
+  fast-sneak-pickup: true
+
+# Default for newly crafted and older Vault Cells without an explicit setting.
+# Players may toggle the hologram independently on each Cell in its GUI.
+# Existing explicit ON/OFF states persist on blocks and portable drops.
+display:
+  hologram-default-enabled: true
+
+# The floating item appears only when enabled, registered, stocked and powered.
+# Its glow outline activates only if the powered Vault is connected to a
+# loaded Vault Terminal through VaultWorks links (not just a Cargo Node).
+
 # Read-only Vault Index topology safety bound.
 # Traversal follows only loaded Vault Link, Vault Index and Vault Power Base blocks.
 index:

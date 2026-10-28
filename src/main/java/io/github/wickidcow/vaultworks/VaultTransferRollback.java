@@ -17,6 +17,8 @@ final class VaultTransferRollback {
     private final RebarBlock root;
     private final Inventory inventory;
     private final ItemStack[] beforeInventory;
+    private final Player cursorOwner;
+    private final ItemStack beforeCursor;
     private final List<CellState> cells;
     private final String operation;
 
@@ -52,9 +54,21 @@ final class VaultTransferRollback {
     }
 
     VaultTransferRollback(RebarBlock root, Inventory inventory, List<BasicVaultCell> cells, String operation) {
+        this(root, inventory, null, cells, operation);
+    }
+
+    // A cursor is NOT included in PlayerInventory#getStorageContents.
+    VaultTransferRollback(RebarBlock root, Player player, List<BasicVaultCell> cells, String operation) {
+        this(root, player.getInventory(), player, cells, operation);
+    }
+
+    private VaultTransferRollback(RebarBlock root, Inventory inventory, Player cursorOwner,
+                                  List<BasicVaultCell> cells, String operation) {
         this.root = root;
         this.inventory = inventory;
         this.beforeInventory = snapshot(inventory);
+        this.cursorOwner = cursorOwner;
+        this.beforeCursor = cursorOwner == null ? null : copyCursor(cursorOwner.getItemOnCursor());
         this.cells = cells.stream().map(CellState::capture).toList();
         this.operation = operation;
     }
@@ -74,6 +88,12 @@ final class VaultTransferRollback {
                 if (inventory.getHolder() instanceof Player player) evidence.setProperty("player", player.getUniqueId().toString());
             } catch (RuntimeException unavailable) { evidence.setProperty("player", "holder unavailable"); }
             items(evidence, "inventory.before", beforeInventory);
+            if (cursorOwner != null) {
+                evidence.setProperty("player", cursorOwner.getUniqueId().toString());
+                evidence.setProperty("cursor.before", encode(beforeCursor));
+                try { evidence.setProperty("cursor.observed", encode(cursorOwner.getItemOnCursor())); }
+                catch (RuntimeException unreadable) { evidence.setProperty("cursor.observed.error", unreadable.toString()); }
+            }
             try { items(evidence, "inventory.observed", snapshot(inventory)); }
             catch (RuntimeException unreadable) { evidence.setProperty("inventory.observed.error", unreadable.toString()); }
             for (int i = 0; i < cells.size(); i++) {
@@ -91,12 +111,18 @@ final class VaultTransferRollback {
         // Always try every participant, including when the inventory setter throws.
         try { inventory.setStorageContents(copy(beforeInventory)); }
         catch (RuntimeException failure) { suppress(original, failure); restored = false; }
+        if (cursorOwner != null) {
+            try { cursorOwner.setItemOnCursor(copyCursor(beforeCursor)); }
+            catch (RuntimeException failure) { suppress(original, failure); restored = false; }
+        }
         for (CellState cell : cells) {
             try { cell.restore(); }
             catch (RuntimeException failure) { suppress(original, failure); restored = false; }
         }
         try {
-            if (!Arrays.equals(beforeInventory, snapshot(inventory)) || cells.stream().anyMatch(s -> !s.matches())) {
+            if (!Arrays.equals(beforeInventory, snapshot(inventory))
+                    || (cursorOwner != null && !java.util.Objects.equals(beforeCursor, copyCursor(cursorOwner.getItemOnCursor())))
+                    || cells.stream().anyMatch(s -> !s.matches())) {
                 original.addSuppressed(new IllegalStateException("Rollback verification did not match the captured contents"));
                 restored = false;
             }
@@ -120,6 +146,9 @@ final class VaultTransferRollback {
 
     static String key(Block block) {
         return block.getWorld().getUID() + ":" + block.getX() + ":" + block.getY() + ":" + block.getZ();
+    }
+    private static ItemStack copyCursor(ItemStack item) {
+        return item == null || item.isEmpty() ? null : item.clone();
     }
     static ItemStack[] snapshot(Inventory inventory) { return copy(inventory.getStorageContents()); }
     private static ItemStack[] copy(ItemStack[] items) {

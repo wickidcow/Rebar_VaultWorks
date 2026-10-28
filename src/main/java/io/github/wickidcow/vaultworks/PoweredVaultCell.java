@@ -51,8 +51,7 @@ public final class PoweredVaultCell extends BasicVaultCell {
     }
 
     @Override
-    public @NotNull Component getGuiTitle() {
-        return Component.text("Advanced Powered Vault Cell — "
-                + (hasRecoveryLock() ? "LOCKED / RECOVERY" : hasIdentityConflict() ? "LOCKED / ID CONFLICT" : (isOperational() ? "Online" : "Offline")));
+    protected String shortGuiName() {
+        return "Adv Vault Cell";
     }
 }

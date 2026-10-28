@@ -82,6 +82,16 @@ item:
       <arrow> Cross-dimensional access requires a Dimensional Vault Antenna
       <arrow> Never force-loads the bound transmitter or storage chunks
 
+  vault_containment_dolly:
+    name: "Vault Containment Dolly"
+    lore: |-
+      <arrow> Reusable containment tool with a Netherite Pickaxe appearance
+      <arrow> Sneak + left-click a VaultWorks Vault Cell to pick it up instantly
+      <arrow> Preserves the item, quantity and identity stored inside a Vault
+      <arrow> Works on Basic or Advanced cells, powered or unpowered
+      <arrow> Respects Towny, WorldGuard and transfer-recovery safety locks
+      <arrow> Ordinary or renamed pickaxes cannot act as a containment dolly
+
   vault_power_base:
     name: "Vault Power Base"
     lore: |-

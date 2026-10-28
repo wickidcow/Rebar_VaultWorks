@@ -19,6 +19,9 @@ val minecraftVersion = providers.gradleProperty("minecraft.version").get()
 dependencies {
     compileOnly("io.github.pylonmc:rebar:$rebarVersion")
     compileOnly("io.papermc.paper:paper-api:$minecraftVersion.build.+")
+    // Unit tests for status-colored inventory titles use Adventure API types.
+    // The main plugin still treats Paper as a server-provided dependency.
+    testImplementation("io.papermc.paper:paper-api:$minecraftVersion.build.+")
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -58,6 +61,11 @@ bukkit {
 
 tasks.runServer {
     providers.gradleProperty("rebar.serverJar").orNull?.let { pluginJars.from(file(it)) }
+    // Opt-in combined plugin test only. GridWorks is never a production dependency.
+    providers.gradleProperty("gridworks.serverJar").orNull?.let {
+        pluginJars.from(file(it))
+        jvmArgs("-Dvaultworks.expectGridworks=true")
+    }
     minecraftVersion(minecraftVersion)
     maxHeapSize = "1G"
     jvmArgs("-Dcom.mojang.eula.agree=true", "-Dterminal.jline=false", "-Dterminal.ansi=false")

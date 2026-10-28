@@ -55,6 +55,8 @@ jobs:
             "io/github/wickidcow/vaultworks/VaultWorks.class"
             "io/github/wickidcow/vaultworks/VaultWorksContentCatalog.class"
             "io/github/wickidcow/vaultworks/BasicVaultCell.class"
+            "io/github/wickidcow/vaultworks/VaultContainmentDolly.class"
+            "io/github/wickidcow/vaultworks/VaultCellFastBreakListener.class"
             "io/github/wickidcow/vaultworks/VaultTerminal.class"
             "io/github/wickidcow/vaultworks/VaultTransmitter.class"
             "io/github/wickidcow/vaultworks/WirelessVaultTerminalItem.class"
@@ -93,8 +95,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .upstream/rebar
-          curl --fail --location --retry 3 https://github.com/pylonmc/rebar/releases/download/0.44.2-26.2/rebar-0.44.2-26.2.jar -o .upstream/rebar/rebar.jar
-          echo 'cfab37deeaa54771d7b838bdfa596a4ec8640771ffa293b573c12837bd7b423e  .upstream/rebar/rebar.jar' | sha256sum -c -
+          curl --fail --location --retry 3 https://github.com/pylonmc/rebar/releases/download/0.44.4-26.2/rebar-0.44.4-26.2.jar -o .upstream/rebar/rebar.jar
+          echo 'fd7573a3124b9836641a4e15fc85ff998b3fed894f58f5eb8002eff44d3a884b  .upstream/rebar/rebar.jar' | sha256sum -c -
 
       - name: Verify real storage operations and clean restart
         shell: bash
@@ -114,6 +116,15 @@ jobs:
           grep -F 'PASS claim buffer survives clean restart' "$RUNNER_TEMP/vaultworks-runtime-2.log"
           grep -F 'PASS failed transfer locks survive clean restart' "$RUNNER_TEMP/vaultworks-runtime-2.log"
           grep -F 'PASS all source compensation survives restart despite inventory restore failure' "$RUNNER_TEMP/vaultworks-runtime-2.log"
+
+      - name: Upload PR-only review JAR
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: VaultWorks-PR-${{ github.event.pull_request.number }}
+          path: build/libs/Rebar_VaultWorks-*.jar
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Record smoke-tested raw JAR digest
         id: tested-jar

@@ -1,5 +1,9 @@
 # Current validation
 
+**Active VaultWorks PR #14 validation:** the build targets the same published Rebar `0.44.4-26.2` artifact as GridWorks (Java 25 / Paper 26.2). Its SHA-256 is checked in CI and its startup, storage, recovery and clean-restart checks run on that server.
+
+The independent `coexistence-smoke.yml` PR gate also checks out the pinned GridWorks Timer Controller review commit `7b0d3a3104108ef4c0ac6a38d42b202ded2b573e`, builds its JAR, then starts GridWorks + VaultWorks together on the same Paper/Rebar server. Both Doctor commands must pass while the VaultWorks regression harness verifies its storage, power, portable Vault holograms and restart-safe recovery. The co-load test does **not** simulate real Towny protections or user GUI clicks on a graphical Minecraft client. The older 0.44.2 results cited below are historical.
+
 See [0.3.0-rc.1 verification](RELEASE-0.3.0-rc.1.md) for released Rebar 0.44.2-26.2 tests, the administrative test power source and clean restart coverage. The earlier snapshot validation below is retained as history.
 
 # Electricity validation — 0.1 prototype (2026-09-30)

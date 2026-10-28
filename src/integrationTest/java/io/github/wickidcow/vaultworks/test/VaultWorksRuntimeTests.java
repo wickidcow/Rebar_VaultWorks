@@ -28,6 +28,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
     private int checks;
     private Location playerLocation;
     private PlayerInventory playerInventory;
+    private ItemStack cursor;
     private Player player;
     private VaultPowerBase liveBase;
     private final List<RebarBlock> fixtures = new ArrayList<>();
@@ -50,6 +51,12 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                 UUID playerId = UUID.randomUUID();
                 player = (Player) Proxy.newProxyInstance(getClassLoader(), new Class<?>[]{Player.class}, (proxy, method, args) -> switch(method.getName()) {
                     case "getInventory" -> playerInventory;
+                    case "getItemOnCursor" -> cursor == null ? new ItemStack(Material.AIR) : cursor.clone();
+                    case "setItemOnCursor" -> {
+                        ItemStack next = (ItemStack) args[0];
+                        cursor = next == null || next.isEmpty() ? null : next.clone();
+                        yield null;
+                    }
                     case "getLocation" -> playerLocation.clone();
                     case "getWorld" -> playerLocation.getWorld();
                     case "getUniqueId" -> playerId;
@@ -63,18 +70,26 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     BasicVaultCell restored = (BasicVaultCell) BlockStorage.get(world.getBlockAt(2,101,2));
                     check(restored.getEndpointId().toString().equals(getConfig().getString("expected-cell-uuid")), "endpoint UUID survives clean restart");
                     check(restored.getStoredAmount() == getConfig().getLong("expected-cell-amount"), "cell contents survive clean restart");
+                    check(restored.isHologramEnabled() == getConfig().getBoolean("expected-cell-hologram"),
+                            "per-cell hologram preference survives clean restart");
                     VaultTerminal restoredTerminal = (VaultTerminal) BlockStorage.get(world.getBlockAt(3,100,2));
                     check(count(restoredTerminal.getVirtualInventories().get("claim").asBukkitInventory(), Material.DIAMOND)
                             == getConfig().getInt("expected-claim-diamonds"), "claim buffer survives clean restart");
                 }
                 verifyRecoveryRestart();
                 getConfig().set("expected-cell-uuid", null);
+                getConfig().set("expected-cell-hologram", null);
                 saveConfig();
                 runChecks();
                 Bukkit.getScheduler().runTaskLater(this, () -> {
                     try {
                         check(liveBase.isOnline(), "test source supplies real Rebar network power");
                         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "vaultworks doctor");
+                        if (Boolean.getBoolean("vaultworks.expectGridworks")) {
+                            check(Bukkit.getPluginManager().isPluginEnabled("GridWorks"),
+                                    "GridWorks is enabled alongside VaultWorks on real Paper/Rebar");
+                            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "gridworks doctor");
+                        }
                         createFailedRecoveryCheckpoint();
                         getLogger().info("VAULTWORKS RUNTIME PASS: " + checks + " checks");
                         Files.writeString(getDataFolder().toPath().resolve("result.txt"), "PASS " + checks);
@@ -274,6 +289,10 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         BlockStorage.breakBlock(emptyB);BlockStorage.breakBlock(emptyA);BlockStorage.breakBlock(emptyBase);
 
         verifyRegistrationPicker();
+        verifyManualCursorTransfer();
+        verifyCellGuiTitlesAndCargo();
+        verifyPerCellHolograms();
+        verifyFastVaultPickup();
         verifyManualCompensation();
 
         VaultTestPowerSource source = (VaultTestPowerSource)place("test_power_source",6,100,2);
@@ -287,6 +306,10 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
 
         // Rebar serializes the physical stored state and claim inventory on clean shutdown.
         call(cell,"setStoredState",new ItemStack(Material.SNOWBALL),12345L);
+        call(cell, "toggleHologram", player);
+        check(!cell.isHologramEnabled() && cell.getStoredAmount() == 12345L,
+                "disabled hologram preserves storage and will be saved with the cell");
+        getConfig().set("expected-cell-hologram", false);
         getConfig().set("expected-cell-uuid",cell.getEndpointId().toString());
         getConfig().set("expected-cell-amount",12345L);
         getConfig().set("expected-claim-diamonds",320);
@@ -336,6 +359,465 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     && cell.getStoredItem() == null && playerInventory.getItem(9).getAmount() == 12,
                     tier + " registration failure restores inventory and cell");
         }
+    }
+
+
+    private void verifyManualCursorTransfer() throws Exception {
+        VaultPowerBase base = (VaultPowerBase) place("vault_power_base", 8, 100, 2);
+        for (String tier : List.of("basic_vault_cell", "powered_vault_cell")) {
+            BasicVaultCell cell = (BasicVaultCell) place(tier, 8, 101, 2);
+            power(base, true);
+            playerInventory.clear();
+            cursor = null;
+
+            org.bukkit.block.Vault vanilla = (org.bukkit.block.Vault) cell.getBlock().getState();
+            check(vanilla.getActivationRange() == 0.0D
+                            && vanilla.getDeactivationRange() == 0.0D
+                            && vanilla.getDisplayedItem().isEmpty(),
+                    tier + " suppresses randomized vanilla Vault preview");
+
+            Gui gui = cell.createGui();
+            check(gui.getItem(22) != null
+                            && gui.getItem(22).getItemProvider(player).get().getType() == Material.VAULT,
+                    tier + " has a central Vault-icon manual transfer slot");
+
+            ItemStack sample = new ItemStack(Material.DIAMOND, 5);
+            sample.editMeta(meta -> meta.displayName(
+                    net.kyori.adventure.text.Component.text("Custom transferred diamond")));
+            cursor = sample.clone();
+            click(gui, 22, player, ClickType.RIGHT);
+            check(cell.getStoredAmount() == 1 && cursor.getAmount() == 4
+                            && cell.getStoredItem().isSimilar(sample),
+                    tier + " right-click registers one exact custom item");
+
+            VaultDisplayManager.update(cell);
+            check(world.getNearbyEntities(cell.getBlock().getLocation().add(0.5, 0.5, 0.5), 1, 1, 1)
+                            .stream().filter(entity -> entity instanceof org.bukkit.entity.ItemDisplay)
+                            .map(entity -> (org.bukkit.entity.ItemDisplay) entity)
+                            .anyMatch(display -> display.getBillboard() == org.bukkit.entity.Display.Billboard.FIXED),
+                    tier + " stored item display faces a fixed direction");
+
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == 5 && cursor == null,
+                    tier + " left-click deposits remaining held stack");
+            click(gui, 22, player, ClickType.RIGHT);
+            check(cell.getStoredAmount() == 4 && cursor != null && cursor.getAmount() == 1,
+                    tier + " right-click with empty cursor picks up one item");
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == 5 && cursor == null,
+                    tier + " clicking while holding item deposits instead of duplicating");
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == 0 && cursor != null && cursor.getAmount() == 5
+                            && cursor.isSimilar(sample),
+                    tier + " left-click picks up a stack without stripping custom metadata");
+
+            cursor = new ItemStack(Material.DIAMOND, 3);
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == 0 && cursor.getAmount() == 3,
+                    tier + " rejects a same-material item with different metadata");
+            cursor = sample.asQuantity(9);
+            call(cell, "setStoredState", sample, cell.getCapacity() - 2L);
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == cell.getCapacity() && cursor.getAmount() == 7,
+                    tier + " partial deposit preserves excess on cursor");
+            call(cell, "togglePurge", player);
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == cell.getCapacity() && cursor.getAmount() == 7,
+                    tier + " manual transfer cannot overflow-purge");
+
+            power(base, false);
+            click(gui, 22, player, ClickType.RIGHT);
+            check(cell.getStoredAmount() == cell.getCapacity() && cursor.getAmount() == 7,
+                    tier + " power loss blocks manual cursor transfer");
+            power(base, true);
+
+            call(cell, "setStoredState", sample, 4L);
+            cursor = sample.asQuantity(3);
+            java.util.concurrent.atomic.AtomicBoolean failOnce = new java.util.concurrent.atomic.AtomicBoolean(true);
+            Player failing = (Player) Proxy.newProxyInstance(getClassLoader(), new Class<?>[]{Player.class},
+                    (proxy, method, args) -> {
+                        Object result = Proxy.getInvocationHandler(player).invoke(player, method, args);
+                        if (method.getName().equals("setItemOnCursor") && failOnce.getAndSet(false)) {
+                            throw new IllegalStateException("simulated cursor update was applied before throwing");
+                        }
+                        return result;
+                    });
+            click(gui, 22, failing, ClickType.LEFT);
+            check(cell.getStoredAmount() == 4 && cursor != null && cursor.getAmount() == 3
+                            && !cell.hasRecoveryLock(),
+                    tier + " failed cursor setter restores the carried stack and cell count");
+
+            cursor = null;
+            call(cell, "setStoredState", sample, 0L);
+            call(cell, "clearRegistration", player);
+            call(cell, "setStoredState", new ItemStack(Material.SNOWBALL), 20L);
+            click(gui, 22, player, ClickType.LEFT);
+            check(cursor != null && cursor.getAmount() == 16 && cell.getStoredAmount() == 4,
+                    tier + " cursor pickup obeys custom 16-stack item limit");
+            cursor = null;
+        }
+        RebarBlock last = BlockStorage.get(world.getBlockAt(8, 101, 2));
+        if (last != null) BlockStorage.breakBlock(last);
+        BlockStorage.breakBlock(base);
+    }
+
+
+
+    private void verifyCellGuiTitlesAndCargo() throws Exception {
+        VaultPowerBase base = (VaultPowerBase) place("vault_power_base", 8, 100, 2);
+        for (String tier : List.of("basic_vault_cell", "powered_vault_cell")) {
+            BasicVaultCell cell = (BasicVaultCell) place(tier, 8, 101, 2);
+            power(base, false);
+            String name = tier.equals("basic_vault_cell") ? "Basic Vault Cell" : "Adv Vault Cell";
+            Gui gui = cell.createGui();
+            check(gui.getItem(22).getItemProvider(player).get().getType() == Material.VAULT,
+                    tier + " empty manual slot shows a Vault instead of a second Hopper");
+
+            java.util.function.Function<net.kyori.adventure.text.Component, String> plain =
+                    net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()::serialize;
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Offline")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GRAY),
+                    tier + " offline unlinked title is short and gray");
+
+            power(base, true);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Powered")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.YELLOW),
+                    tier + " powered without cargo is yellow");
+
+            org.bukkit.block.BlockFace front =
+                    ((org.bukkit.block.data.type.Vault) cell.getBlock().getBlockData()).getFacing();
+            Block rear = cell.getBlock().getRelative(front.getOppositeFace());
+            VaultCargoNode cargo = (VaultCargoNode) Objects.requireNonNull(
+                    BlockStorage.placeBlock(rear, NamespacedKey.fromString("vaultworks:vault_cargo_node")));
+            check(cargo.getFacing() == front
+                            && plain.apply(cell.getGuiTitle()).equals(name + " • Pwr+Cargo")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GREEN),
+                    tier + " loaded rear Cargo Node + power makes the title green");
+
+
+            // A terminal is a true VaultWorks network node, not a cargo pipe.
+            // Green must outrank the light-green power+Cargo status.
+            VaultTerminal terminal = (VaultTerminal) place("vault_terminal", 9, 100, 2);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Terminal")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.DARK_GREEN),
+                    tier + " powered Terminal + Cargo is green with network priority");
+            BlockStorage.breakBlock(terminal);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Pwr+Cargo")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GREEN),
+                    tier + " disconnecting a Terminal restores light green Cargo priority");
+
+            power(base, false);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Cargo")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.TextColor.color(0x55AAFF)),
+                    tier + " cargo attached but power off makes title blue");
+
+            BlockStorage.breakBlock(cargo);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Offline")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GRAY),
+                    tier + " removing cargo while unpowered returns title to gray");
+
+            power(base, true);
+
+            // The same Vault Link topology used by Terminal transfers is checked:
+            // a powered cell is green even without a rear Cargo Node.
+            VaultLinkCable link = (VaultLinkCable) place("vault_link", 9, 100, 2);
+            VaultTerminal linkedTerminal = (VaultTerminal) place("vault_terminal", 10, 100, 2);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Terminal")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.DARK_GREEN),
+                    tier + " powered cell reaches Terminal through a Vault Link with no Cargo");
+            BlockStorage.breakBlock(link);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Powered")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.YELLOW),
+                    tier + " breaking the Vault Link disconnects Terminal and restores yellow");
+            BlockStorage.breakBlock(linkedTerminal);
+
+            ItemStack sample = new ItemStack(Material.DIAMOND, 7);
+            sample.editMeta(meta -> {
+                meta.displayName(net.kyori.adventure.text.Component.text("Custom storage key"));
+                meta.getPersistentDataContainer().set(
+                        NamespacedKey.fromString("vaultworks:preview_test"),
+                        PersistentDataType.STRING, "preserved");
+            });
+
+            // An unpowered linked network must NOT be green; only powered
+            // cells with usable network access receive Terminal-green titles.
+            VaultTerminal unpoweredTerminal = (VaultTerminal) place("vault_terminal", 9, 100, 2);
+            power(base, false);
+            check(plain.apply(cell.getGuiTitle()).equals(name + " • Offline")
+                            && cell.getGuiTitle().color().equals(net.kyori.adventure.text.format.NamedTextColor.GRAY),
+                    tier + " connected but unpowered Terminal is not a green cell");
+            BlockStorage.breakBlock(unpoweredTerminal);
+            power(base, true);
+
+            call(cell, "setStoredState", sample, 99L);
+            ItemStack preview = gui.getItem(22).getItemProvider(player).get();
+            check(preview.getType() == Material.DIAMOND
+                            && preview.getAmount() == 1
+                            && "preserved".equals(preview.getPersistentDataContainer().get(
+                                NamespacedKey.fromString("vaultworks:preview_test"), PersistentDataType.STRING)),
+                    tier + " transfer icon displays one cloned custom stored item");
+            check(plain.apply(cell.getGuiTitle()).length() <= 30,
+                    tier + " title fits the inventory width");
+
+            call(cell, "setStoredState", null, 0L);
+            call(cell, "clearRegistration", player);
+            check(gui.getItem(22).getItemProvider(player).get().getType() == Material.VAULT,
+                    tier + " clearing registration restores the empty Vault transfer icon");
+        }
+        RebarBlock last = BlockStorage.get(world.getBlockAt(8, 101, 2));
+        if (last != null) BlockStorage.breakBlock(last);
+        BlockStorage.breakBlock(base);
+    }
+
+
+    /**
+     * Validates the same native ItemDisplay used by both Vault tiers: one
+     * non-interactive entity at most, separately persisted ON/OFF preference,
+     * visibility requiring stock+power and outline requiring a Terminal.
+     */
+    private void verifyPerCellHolograms() throws Exception {
+        VaultPowerBase base = (VaultPowerBase) place("vault_power_base", 8, 100, 2);
+        for (String tier : List.of("basic_vault_cell", "powered_vault_cell")) {
+            VaultWorks.instance().getConfig().set("display.hologram-default-enabled", true);
+            BasicVaultCell cell = (BasicVaultCell) place(tier, 8, 101, 2);
+            power(base, true);
+            call(cell, "updatePowerVisual", true);
+            Gui gui = cell.createGui();
+
+            check(cell.isHologramEnabled()
+                            && gui.getItem(40).getItemProvider(player).get().getType() == Material.GLOW_ITEM_FRAME,
+                    tier + " new cell defaults to enabled hologram toggle");
+            check(hologramDisplay(cell) == null, tier + " no floating item before registration");
+
+            ItemStack custom = new ItemStack(Material.EMERALD);
+            custom.editMeta(meta -> {
+                meta.displayName(net.kyori.adventure.text.Component.text("Hologram custom item"));
+                meta.getPersistentDataContainer().set(
+                        NamespacedKey.fromString("vaultworks:hologram_test"),
+                        PersistentDataType.STRING, "untouched");
+            });
+            call(cell, "setStoredState", custom, 12L);
+            org.bukkit.entity.ItemDisplay visible = hologramDisplay(cell);
+            check(visible != null && visible.getItemStack().isSimilar(custom)
+                            && !visible.isGlowing() && !cell.isHologramGlowing(),
+                    tier + " powered stocked cell shows exactly its registered item without network glow");
+
+            VaultTerminal terminal = (VaultTerminal) place("vault_terminal", 9, 100, 2);
+            call(cell, "refreshNetworkStatus");
+            org.bukkit.entity.ItemDisplay connected = hologramDisplay(cell);
+            check(connected != null && connected.isGlowing() && cell.isHologramGlowing(),
+                    tier + " Terminal connectivity enables item outline glow");
+            BlockStorage.breakBlock(terminal);
+            call(cell, "refreshNetworkStatus");
+            check(hologramDisplay(cell) != null && !hologramDisplay(cell).isGlowing(),
+                    tier + " unplugging Terminal switches outline off but leaves item visible");
+
+            long stored = cell.getStoredAmount();
+            click(gui, 40, player, ClickType.LEFT);
+            check(!cell.isHologramEnabled()
+                            && gui.getItem(40).getItemProvider(player).get().getType() == Material.ITEM_FRAME
+                            && hologramDisplay(cell) == null && cell.getStoredAmount() == stored,
+                    tier + " hologram toggle OFF removes display without touching item stock");
+            click(gui, 40, player, ClickType.SHIFT_LEFT);
+            check(!cell.isHologramEnabled(), tier + " shift-click cannot modify hologram toggle");
+            click(gui, 40, player, ClickType.RIGHT);
+            check(cell.isHologramEnabled() && hologramDisplay(cell) != null
+                            && cell.getStoredAmount() == stored,
+                    tier + " hologram toggle ON restores exactly one live display");
+
+            power(base, false);
+            call(cell, "updatePowerVisual", false);
+            check(hologramDisplay(cell) == null, tier + " power loss hides registered hologram");
+            click(gui, 40, player, ClickType.LEFT);
+            check(!cell.isHologramEnabled(), tier + " hologram preference can be set while power is offline");
+            power(base, true);
+            call(cell, "updatePowerVisual", true);
+            check(hologramDisplay(cell) == null, tier + " disabled hologram stays hidden when power returns");
+
+            ItemStack packed = cell.getDropItem(new BlockBreakContext.PluginBreak(cell.getBlock()));
+            Boolean persisted = packed.getPersistentDataContainer().get(
+                    NamespacedKey.fromString("vaultworks:hologram_enabled"),
+                    io.github.pylonmc.rebar.datatypes.RebarSerializers.BOOLEAN);
+            check(Boolean.FALSE.equals(persisted)
+                            && cell.getStoredAmount() == 12L,
+                    tier + " portable drop retains disabled hologram and full item count");
+            UUID endpoint = cell.getEndpointId();
+            BlockStorage.breakBlock(cell);
+            Block block = world.getBlockAt(8, 101, 2);
+            BasicVaultCell restored = (BasicVaultCell) BlockStorage.placeBlock(block,
+                    NamespacedKey.fromString("vaultworks:" + tier),
+                    new BlockCreateContext.Default(null, block,
+                            BlockFace.NORTH, BlockFace.NORTH, packed, true));
+            check(!restored.isHologramEnabled()
+                            && restored.getEndpointId().equals(endpoint)
+                            && restored.getStoredAmount() == 12L
+                            && hologramDisplay(restored) == null,
+                    tier + " relocation restores item, count, identity and disabled hologram");
+
+            // Zero stored quantity hides the item even when the registration is retained.
+            click(restored.createGui(), 40, player, ClickType.LEFT);
+            call(restored, "setStoredState", custom, 0L);
+            check(restored.isHologramEnabled() && restored.getStoredItem() != null
+                            && hologramDisplay(restored) == null,
+                    tier + " registered but empty cell never displays a fake stored item");
+            call(restored, "setStoredState", custom, 5L);
+            check(hologramDisplay(restored) != null, tier + " newly replenished cell restores hologram");
+
+            BlockStorage.breakBlock(restored);
+
+            VaultWorks.instance().getConfig().set("display.hologram-default-enabled", false);
+            BasicVaultCell initiallyDisabled = (BasicVaultCell) place(tier, 8, 101, 2);
+            check(!initiallyDisabled.isHologramEnabled()
+                            && initiallyDisabled.createGui().getItem(40).getItemProvider(player)
+                                .get().getType() == Material.ITEM_FRAME,
+                    tier + " changing config default affects new Vault Cell");
+            ItemStack ordinaryEmpty = initiallyDisabled.getDropItem(
+                    new BlockBreakContext.PluginBreak(initiallyDisabled.getBlock()));
+            check(ordinaryEmpty.isSimilar(initiallyDisabled.getDefaultItem().createNewItemStack()),
+                    tier + " unregistered empty Vault with default preference stays stackable");
+            click(initiallyDisabled.createGui(), 40, player, ClickType.LEFT);
+            ItemStack emptyCustom = initiallyDisabled.getDropItem(
+                    new BlockBreakContext.PluginBreak(initiallyDisabled.getBlock()));
+            check(!emptyCustom.isSimilar(initiallyDisabled.getDefaultItem().createNewItemStack())
+                            && initiallyDisabled.isHologramEnabled()
+                            && Boolean.TRUE.equals(emptyCustom.getPersistentDataContainer().get(
+                                NamespacedKey.fromString("vaultworks:hologram_enabled"),
+                                io.github.pylonmc.rebar.datatypes.RebarSerializers.BOOLEAN)),
+                    tier + " customized empty Vault retains explicit ON despite default OFF");
+            BlockStorage.breakBlock(initiallyDisabled);
+            Block emptySpot = world.getBlockAt(8, 101, 2);
+            BasicVaultCell restoredEmpty = (BasicVaultCell) BlockStorage.placeBlock(emptySpot,
+                    NamespacedKey.fromString("vaultworks:" + tier),
+                    new BlockCreateContext.Default(null, emptySpot,
+                            BlockFace.NORTH, BlockFace.NORTH, emptyCustom, true));
+            check(restoredEmpty.isHologramEnabled() && restoredEmpty.getStoredAmount() == 0L,
+                    tier + " customized empty portable Vault survives replacement");
+            BlockStorage.breakBlock(restoredEmpty);
+        }
+        VaultWorks.instance().getConfig().set("display.hologram-default-enabled", true);
+        BlockStorage.breakBlock(base);
+    }
+
+    private org.bukkit.entity.ItemDisplay hologramDisplay(BasicVaultCell cell) {
+        String owner = cell.getBlock().getWorld().getUID() + ":" + cell.getBlock().getX()
+                + ":" + cell.getBlock().getY() + ":" + cell.getBlock().getZ();
+        return cell.getBlock().getWorld().getNearbyEntities(
+                        cell.getBlock().getLocation().add(0.5, 0.5, 0.5), 0.8, 0.8, 0.8)
+                .stream()
+                .filter(entity -> entity instanceof org.bukkit.entity.ItemDisplay)
+                .map(entity -> (org.bukkit.entity.ItemDisplay) entity)
+                .filter(display -> owner.equals(display.getPersistentDataContainer().get(
+                        NamespacedKey.fromString("vaultworks:vault_display_owner"),
+                        PersistentDataType.STRING)))
+                .findFirst().orElse(null);
+    }
+
+    private void verifyFastVaultPickup() throws Exception {
+        VaultPowerBase base = (VaultPowerBase) place("vault_power_base", 8, 100, 2);
+        Player sneaking = (Player) Proxy.newProxyInstance(getClassLoader(), new Class<?>[]{Player.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getGameMode" -> GameMode.SURVIVAL;
+                    case "isSneaking" -> true;
+                    default -> Proxy.getInvocationHandler(player).invoke(player, method, args);
+                });
+        Player creative = (Player) Proxy.newProxyInstance(getClassLoader(), new Class<?>[]{Player.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getGameMode" -> GameMode.CREATIVE;
+                    case "isSneaking" -> true;
+                    default -> Proxy.getInvocationHandler(player).invoke(player, method, args);
+                });
+        ItemStack pickaxe = new ItemStack(Material.DIAMOND_PICKAXE);
+        ItemStack dolly = Objects.requireNonNull(RebarRegistry.ITEMS.get(
+                NamespacedKey.fromString("vaultworks:vault_containment_dolly"))).createNewItemStack();
+        check(dolly.getType() == Material.NETHERITE_PICKAXE
+                && dolly.getItemMeta().isUnbreakable(), "containment dolly looks like a reusable pickaxe");
+        check(VaultContainmentDolly.isDolly(dolly), "registered containment dolly authenticates");
+        check(!VaultContainmentDolly.isDolly(pickaxe), "ordinary pickaxe is not a containment dolly");
+        ItemStack spoof = new ItemStack(Material.NETHERITE_PICKAXE);
+        spoof.editMeta(meta -> meta.displayName(net.kyori.adventure.text.Component.text("Vault Containment Dolly")));
+        check(!VaultContainmentDolly.isDolly(spoof), "renamed pickaxe does not impersonate the containment dolly");
+        for (String tier : List.of("basic_vault_cell", "powered_vault_cell")) {
+            BasicVaultCell vault = (BasicVaultCell) place(tier, 8, 101, 2);
+            power(base, true);
+            call(vault, "setStoredState", new ItemStack(Material.EMERALD), 12345L);
+
+            org.bukkit.event.block.BlockDamageEvent normal = new org.bukkit.event.block.BlockDamageEvent(
+                    player, vault.getBlock(), pickaxe, false);
+            Bukkit.getPluginManager().callEvent(normal);
+            check(!normal.getInstaBreak(), tier + " regular mining stays unchanged");
+
+            org.bukkit.event.block.BlockDamageEvent regularPickaxe = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), pickaxe, false);
+            Bukkit.getPluginManager().callEvent(regularPickaxe);
+            check(!regularPickaxe.getInstaBreak(), tier + " ordinary sneaking pickaxe is not authorized");
+
+            org.bukkit.event.block.BlockDamageEvent notSneaking = new org.bukkit.event.block.BlockDamageEvent(
+                    player, vault.getBlock(), dolly, false);
+            Bukkit.getPluginManager().callEvent(notSneaking);
+            check(!notSneaking.getInstaBreak(), tier + " dolly requires deliberate sneaking");
+
+            org.bukkit.event.block.BlockDamageEvent quick = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), dolly, false);
+            Bukkit.getPluginManager().callEvent(quick);
+            check(quick.getInstaBreak(), tier + " authentic dolly instantly picks up the cell");
+
+            org.bukkit.event.block.BlockDamageEvent fake = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), spoof, false);
+            Bukkit.getPluginManager().callEvent(fake);
+            check(!fake.getInstaBreak(), tier + " renamed fake dolly does not instantly break a Vault");
+
+            org.bukkit.event.block.BlockDamageEvent wrongTool = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), new ItemStack(Material.STICK), false);
+            Bukkit.getPluginManager().callEvent(wrongTool);
+            check(!wrongTool.getInstaBreak(), tier + " non-pickaxes cannot instant-break cells");
+
+            org.bukkit.event.block.BlockDamageEvent creativeEvent = new org.bukkit.event.block.BlockDamageEvent(
+                    creative, vault.getBlock(), dolly, false);
+            Bukkit.getPluginManager().callEvent(creativeEvent);
+            check(!creativeEvent.getInstaBreak(), tier + " creative mode never uses survival pickup");
+
+            org.bukkit.event.block.BlockDamageEvent cancelled = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), dolly, false);
+            cancelled.setCancelled(true);
+            Bukkit.getPluginManager().callEvent(cancelled);
+            check(!cancelled.getInstaBreak() && BlockStorage.get(vault.getBlock()) == vault,
+                    tier + " prior cancelled damage cannot trigger quick pickup");
+
+            VaultWorks.instance().getConfig().set("storage.fast-sneak-pickup", false);
+            try {
+                org.bukkit.event.block.BlockDamageEvent disabled = new org.bukkit.event.block.BlockDamageEvent(
+                        sneaking, vault.getBlock(), dolly, false);
+                Bukkit.getPluginManager().callEvent(disabled);
+                check(!disabled.getInstaBreak(), tier + " configuration can disable quick pickup");
+            } finally {
+                VaultWorks.instance().getConfig().set("storage.fast-sneak-pickup", true);
+            }
+
+            power(base, false);
+            org.bukkit.event.block.BlockDamageEvent offline = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), dolly, false);
+            Bukkit.getPluginManager().callEvent(offline);
+            check(offline.getInstaBreak(), tier + " moving an unpowered cell is allowed");
+            power(base, true);
+
+            check(vault.getStoredAmount() == 12345L
+                            && vault.getDropItem(new BlockBreakContext.PlayerBreak(
+                                new org.bukkit.event.block.BlockBreakEvent(vault.getBlock(), sneaking)))
+                               .getPersistentDataContainer().has(
+                                    NamespacedKey.fromString("vaultworks:stored_amount")),
+                    tier + " real player-break drop contains packed storage data");
+        }
+
+        Block unrelated = world.getBlockAt(9, 105, 2);
+        unrelated.setType(Material.STONE);
+        org.bukkit.event.block.BlockDamageEvent unrelatedDamage = new org.bukkit.event.block.BlockDamageEvent(
+                sneaking, unrelated, dolly, false);
+        Bukkit.getPluginManager().callEvent(unrelatedDamage);
+        check(!unrelatedDamage.getInstaBreak(), "vanilla and unrelated blocks are untouched");
+        unrelated.setType(Material.AIR);
+        RebarBlock last = BlockStorage.get(world.getBlockAt(8, 101, 2));
+        if (last != null) BlockStorage.breakBlock(last);
+        BlockStorage.breakBlock(base);
     }
 
     private void verifyManualCompensation() throws Exception {
@@ -493,7 +975,8 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         ElectricConsumerNode consumer=block.getElectricNode("consumer_0",ElectricConsumerNode.class);
         Field f=ElectricConsumerNode.class.getDeclaredField("isPowered"); f.setAccessible(true); f.set(consumer,value);
     }
-    private void click(Gui gui,int slot,Player who) { gui.getItem(slot).handleClick(ClickType.LEFT,who,null); }
+    private void click(Gui gui,int slot,Player who) { click(gui,slot,who,ClickType.LEFT); }
+    private void click(Gui gui,int slot,Player who,ClickType type) { gui.getItem(slot).handleClick(type,who,null); }
     private static long count(Inventory inv,Material type) { return Arrays.stream(inv.getStorageContents()).filter(Objects::nonNull).filter(i->i.getType()==type).mapToLong(ItemStack::getAmount).sum(); }
     private void check(boolean condition,String text) { if(!condition)throw new AssertionError(text); checks++; getLogger().info("PASS "+text); }
     private static Object defaultValue(Class<?> type) { if(!type.isPrimitive()||type==void.class)return null; if(type==boolean.class)return false; if(type==double.class)return 0D; if(type==float.class)return 0F; if(type==long.class)return 0L; return 0; }

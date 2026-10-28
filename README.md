@@ -29,11 +29,13 @@ Available now:
 - **Dimensional Vault Antenna** — permits cross-world/dimension access while the source transmitter is loaded and powered.
 - **Wireless Vault Terminal** — bindable portable terminal for player inventory access away from the storage room.
 - Persistent Vault endpoint UUIDs and monotonic storage revisions for safe identity/change tracking.
-- Floating registered-item display inside each Vault.
+- Fixed-direction stored-item hologram inside each Vault, with randomized vanilla trial-loot preview disabled. A per-Cell Item Frame/Glow Item Frame GUI button toggles the display; it defaults ON by config and is visible only when registered, stocked and powered. The item **glows only when its powered Vault reaches a loaded VaultWorks Terminal** (Cargo alone never glows).
+- Central Manual Transfer Slot in both Vault Cell GUIs for direct cursor deposits and one-item/stack pickups.
 - Quick deposit, quick withdraw, clear-registration control and per-Vault overflow-purge toggle.
 - Filled Vault Cells keep their stored item, count and overflow setting inside the dropped Vault item when broken, so the cell can be moved and placed elsewhere without dumping its contents.
+- **Vault Containment Dolly** — a reusable unbreakable Netherite Pickaxe-style tool. Sneak + left-click with it to pack either Basic or Advanced Vault Cells instantly, including their complete contents. Ordinary pickaxes do not trigger this shortcut. All Towny/WorldGuard and recovery protections remain in effect.
 
-Requires **Paper 26.2, Java 25, and Rebar 0.44.2-26.2**. The released Rebar API and server JAR are pinned for this build. Older Rebar versions without electricity are unsupported.
+Requires **Paper 26.2, Java 25, and Rebar 0.44.4-26.2**. The released Rebar API and server JAR are pinned for this build. Older Rebar versions without electricity are unsupported.
 
 [Download the rolling raw 0.3.0-rc.2 JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.3.0-rc.2.jar). Place it directly in `plugins/` and restart. The rolling development JAR is published only after the main branch passes build, package, live Paper/Rebar startup, `/vaultworks doctor`, clean shutdown, and byte-for-byte rebuild verification.
 
@@ -43,16 +45,31 @@ Requires **Paper 26.2, Java 25, and Rebar 0.44.2-26.2**. The released Rebar API 
 2. Stack **1–6 Vault Cells directly above the base**. A seventh placement is rejected.
 3. Connect Rebar electricity to the rear of the base. Default demand is **16 W base + 8 W per contiguous Vault**: 24 W for one Vault and 64 W for a full six-high column.
 4. When power is available, the base lights and each registered item display inside the connected Vaults brightens/glows. The vanilla Vault block itself stays in its inert state so VaultWorks does not trigger Mojang's trial-key/reward behavior. Without power, Vault storage controls and cargo operations are locked, but stored data remains safe.
-5. Open a Vault (an empty hand works), click **Register Stored Item**, then choose an item from your inventory. Registering consumes exactly **1 item** and permanently keys that Vault to that exact item identity until the count reaches zero and the registration is cleared.
+5. Open a Vault (an empty hand works). Either click **Register Stored Item** and choose one item from your inventory (consumes exactly 1), or hold an item on your cursor and click the **Manual Transfer Slot** to deposit and register it directly. The first registered item keys the Vault to that exact item identity until the count reaches zero and the registration is cleared.
 6. Place a **Vault Cargo Node directly behind a Vault Cell**. Connect Rebar cargo to the node's outward-facing side. The front of the Vault wall remains clean.
 7. Overflow purge is **OFF by default**. When enabled for a Vault, matching input beyond capacity is intentionally destroyed; when disabled, excess stays at the source.
-8. Break a filled Vault Cell normally and the stored state travels with the dropped Vault Cell item. Place that item above another valid Vault Power Base to restore it.
+8. Craft the **Vault Containment Dolly** using 2 Storage Lattices, 1 Encoded Circuit, 2 Copper Ingots, a Diamond Pickaxe and 1 Memory Wafer. **Sneak + left-click a Vault Cell while holding the Dolly** for instant Survival pickup. The block drops as one portable filled Vault; stored items, amount, settings and endpoint identity travel with it. Place it above another valid Vault Power Base to restore it. The normal Paper block-break and Rebar drop events still fire, so Towny/WorldGuard can deny the action; a recovery-locked cell cannot be picked up. It works without power, requires no Silk Touch, and never consumes durability. Regular or renamed pickaxes do not trigger quick pickup. Disable with `storage.fast-sneak-pickup: false` in `plugins/VaultWorks/config.yml` and restart.
 
 The Power Base uses a lit copper-bulb shell as the safe vanilla fallback for the “powered bedrock / power mat” idea. It remains normally breakable; VaultWorks does not turn the actual world block into unbreakable Bedrock.
 
-### Cell controls and empty stacking
+### Cell controls, title colors, and empty stacking
 
-Both tiers require a powered Vault Power Base. Display names are **Basic Powered Vault Cell** and **Advanced Powered Vault Cell**; their existing IDs remain `basic_vault_cell` and `powered_vault_cell`.
+Both tiers require a powered Vault Power Base. Item names remain **Basic Powered Vault Cell** and **Advanced Powered Vault Cell**; their existing IDs remain `basic_vault_cell` and `powered_vault_cell`. GUI titles are shortened to **Basic Vault Cell** and **Adv Vault Cell** so they fit without running outside the inventory frame.
+
+| GUI title color | Condition | Title suffix |
+| --- | --- | --- |
+| Green (dark green) | Powered **and** connected to a loaded Vault Terminal through VaultWorks links | Terminal |
+| Light green | Powered + correctly attached rear Cargo Node, no Terminal connection | Pwr+Cargo |
+| Yellow | Powered only, no Terminal or Cargo Node | Powered |
+| Bright blue | Rear Cargo Node attached but power offline | Cargo |
+| Gray | No power and no attached Cargo Node | Offline |
+| Red | Recovery lock or duplicated endpoint identity (overrides all) | Locked |
+
+The precedence is **red > terminal-green > cargo-light-green > yellow > blue > gray**. A powered terminal connection takes precedence over Cargo, even when both systems are connected. A Vault Terminal or Vault Transmitter acting as a terminal counts only when reachable from this cell's Power Base via the **existing loaded VaultWorks topology**, including Vault Link Cables, Vault Index, and adjacent Power Bases. If the search hits its configured node limit, VaultWorks does not claim a proven connection.
+
+**Cargo attached** means an appropriately facing **Vault Cargo Node physically connected to the rear of the Vault Cell**. It does not promise that ducts have a complete route or that an unpowered cell can move items. GUI titles refresh on power, cargo, and VaultWorks network topology changes, without a repeating scan or closing the inventory.
+
+The center **Manual Transfer Slot** shows a Vault block icon when the cell is not registered. Once an item is registered it displays a single cloned preview of that exact stored item, including custom metadata. This is still a controlled InvUI button rather than a real inventory slot: clicking moves items through guarded transfers, not by taking the preview. The separate **Quick Deposit** button keeps its Hopper icon.
 
 Advanced cell Quick Withdraw:
 
@@ -64,7 +81,24 @@ Advanced cell Quick Withdraw:
 
 Stack limits and available inventory space are respected. Basic cells retain left-click to fill inventory and right-click for one item.
 
+**Manual Transfer Slot (center of either Vault Cell GUI):** With a matching item on your cursor, left-click deposits the held stack and right-click deposits **one**. With an empty cursor, left-click takes up to **one normal item stack** and right-click takes **one**. Depositing into an unregistered empty Vault also registers that exact item identity. Wrong items, nested Vault Cells, unavailable power, recovery/identity locks, and full storage are rejected without consuming the cursor stack. The manual slot never purges overflow; excess stays on the cursor. It is a click-to-transfer control, not a separate persistent inventory slot. The cursor and Vault state are included in synchronous failure compensation, but abrupt-crash atomicity is not yet guaranteed.
+
 Healthy empty cells stack up to 64 per tier. Unregistered empty drops with default overflow settings stack with freshly crafted cells. Registered empty cells stack only when their item registration and overflow settings match. Empty portable stacks receive fresh endpoint IDs when placed. Filled cells, cells with legacy recovery contents, and identity-conflicted or transfer-recovery-locked cells remain unstackable and preserve their endpoint IDs.
+
+### Per-Vault item hologram
+
+Every Basic and Advanced Vault Cell has an **Item Hologram: ON/OFF** button on the bottom row. When ON, the centered floating item appears **only when a registered item has a positive stored quantity and the Vault Power Base is powered**. The hologram is a protected Bukkit `ItemDisplay`, not an inventory item or a second Item Frame entity, so players cannot remove or duplicate it by clicking.
+
+If the powered Vault's own VaultWorks network can reach a loaded **Vault Terminal** (including a Transmitter acting as a terminal), the item receives a bright glow. A rear Rebar Cargo Node alone does **not** make the floating item glow. Glow automatically changes when VaultWorks links, Terminal reachability or power change. No hologram is rendered when the Vault is unpowered, unregistered, empty, or toggled OFF.
+
+New Vault Cells (and existing cells without a saved preference) default to ON with:
+
+```yaml
+display:
+  hologram-default-enabled: true
+```
+
+Set this to `false` to change the default for cells that have no saved preference. Each cell's chosen ON/OFF state is persisted with Rebar block data and carried inside its portable drop, including empty cells that have customized the setting. Changing the config does not overwrite an explicit per-cell selection. The Hologram button is a visual setting; it does not affect the stored item, terminal access or Cargo transfers.
 
 ### Permanently empty a cell
 

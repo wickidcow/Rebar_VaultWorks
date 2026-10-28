@@ -18,8 +18,9 @@ import org.bukkit.util.Transformation;
 /**
  * Maintains the single non-interactive item floating inside a Vault Cell.
  *
- * There is no repeating task: the display is reconciled when a cell loads or
- * when its registered item changes.
+ * There is no repeating task: the display is reconciled on item, power,
+ * hologram toggle, and VaultWorks Terminal topology changes. A regular
+ * ItemDisplay renders the floating item; no ItemFrame duplicates are spawned.
  */
 public final class VaultDisplayManager {
 
@@ -39,10 +40,17 @@ public final class VaultDisplayManager {
         String owner = owner(cell);
         ItemDisplay display = getTracked(owner);
 
-        if (registered == null || registered.isEmpty()) {
+        boolean visible = VaultHologramPolicy.visible(
+                cell.isHologramEnabled(), online && cell.isOperational(),
+                registered != null && !registered.isEmpty(), cell.getStoredAmount());
+        if (!visible) {
             remove(cell);
             return;
         }
+        // A Cargo Node alone never triggers the highlight. The VaultWorks
+        // network must reach a loaded Terminal while the Vault is powered.
+        boolean glow = VaultHologramPolicy.glowing(
+                visible, VaultTerminalReachability.connected(cell.getPowerBase()));
 
         if (display == null) {
             List<ItemDisplay> displays = findDisplays(cell, owner);
@@ -60,13 +68,24 @@ public final class VaultDisplayManager {
         ItemStack shown = registered.asOne();
         display.setItemStack(shown);
         display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
-        display.setBillboard(Display.Billboard.CENTER);
+        // Freeze the stored model; do not swivel it toward every passing player.
+        display.setBillboard(Display.Billboard.FIXED);
+        if (cell.getBlock().getBlockData() instanceof org.bukkit.block.data.Directional facing) {
+            float yaw = switch (facing.getFacing()) {
+                case NORTH -> 180.0F;
+                case SOUTH -> 0.0F;
+                case EAST -> -90.0F;
+                case WEST -> 90.0F;
+                default -> 0.0F;
+            };
+            display.setRotation(yaw, 0.0F);
+        }
         display.setGravity(false);
         display.setInvulnerable(true);
         display.setSilent(true);
         display.setPersistent(true);
-        display.setGlowing(online);
-        display.setBrightness(online ? new Display.Brightness(15, 15) : null);
+        display.setGlowing(glow);
+        display.setBrightness(glow ? new Display.Brightness(15, 15) : null);
         display.setShadowRadius(0.0F);
         display.setShadowStrength(0.0F);
         display.getPersistentDataContainer().set(OWNER_KEY, PersistentDataType.STRING, owner);

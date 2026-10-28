@@ -30,7 +30,7 @@ class VaultWorksContentConsistencyTest {
     @Test
     void catalogIsUniqueAndNormalized() {
         VaultWorksContentCatalog.validate();
-        assertEquals(14, VaultWorksContentCatalog.ALL_IDS.size());
+        assertEquals(15, VaultWorksContentCatalog.ALL_IDS.size());
     }
 
     @Test
