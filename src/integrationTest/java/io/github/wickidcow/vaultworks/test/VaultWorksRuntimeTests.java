@@ -70,12 +70,15 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     BasicVaultCell restored = (BasicVaultCell) BlockStorage.get(world.getBlockAt(2,101,2));
                     check(restored.getEndpointId().toString().equals(getConfig().getString("expected-cell-uuid")), "endpoint UUID survives clean restart");
                     check(restored.getStoredAmount() == getConfig().getLong("expected-cell-amount"), "cell contents survive clean restart");
+                    check(restored.isHologramEnabled() == getConfig().getBoolean("expected-cell-hologram"),
+                            "per-cell hologram preference survives clean restart");
                     VaultTerminal restoredTerminal = (VaultTerminal) BlockStorage.get(world.getBlockAt(3,100,2));
                     check(count(restoredTerminal.getVirtualInventories().get("claim").asBukkitInventory(), Material.DIAMOND)
                             == getConfig().getInt("expected-claim-diamonds"), "claim buffer survives clean restart");
                 }
                 verifyRecoveryRestart();
                 getConfig().set("expected-cell-uuid", null);
+                getConfig().set("expected-cell-hologram", null);
                 saveConfig();
                 runChecks();
                 Bukkit.getScheduler().runTaskLater(this, () -> {
@@ -298,6 +301,10 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
 
         // Rebar serializes the physical stored state and claim inventory on clean shutdown.
         call(cell,"setStoredState",new ItemStack(Material.SNOWBALL),12345L);
+        call(cell, "toggleHologram", player);
+        check(!cell.isHologramEnabled() && cell.getStoredAmount() == 12345L,
+                "disabled hologram preserves storage and will be saved with the cell");
+        getConfig().set("expected-cell-hologram", false);
         getConfig().set("expected-cell-uuid",cell.getEndpointId().toString());
         getConfig().set("expected-cell-amount",12345L);
         getConfig().set("expected-claim-diamonds",320);
