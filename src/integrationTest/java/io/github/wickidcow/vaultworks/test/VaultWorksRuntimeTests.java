@@ -666,12 +666,28 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                             && initiallyDisabled.createGui().getItem(40).getItemProvider(player)
                                 .get().getType() == Material.ITEM_FRAME,
                     tier + " changing config default affects new Vault Cell");
+            ItemStack ordinaryEmpty = initiallyDisabled.getDropItem(
+                    new BlockBreakContext.PluginBreak(initiallyDisabled.getBlock()));
+            check(ordinaryEmpty.isSimilar(initiallyDisabled.getDefaultItem().createNewItemStack()),
+                    tier + " unregistered empty Vault with default preference stays stackable");
+            click(initiallyDisabled.createGui(), 40, player, ClickType.LEFT);
             ItemStack emptyCustom = initiallyDisabled.getDropItem(
                     new BlockBreakContext.PluginBreak(initiallyDisabled.getBlock()));
             check(!emptyCustom.isSimilar(initiallyDisabled.getDefaultItem().createNewItemStack())
-                            && !initiallyDisabled.isHologramEnabled(),
-                    tier + " customized empty Vault retains its preference in portable drop");
+                            && initiallyDisabled.isHologramEnabled()
+                            && Boolean.TRUE.equals(emptyCustom.getPersistentDataContainer().get(
+                                NamespacedKey.fromString("vaultworks:hologram_enabled"),
+                                io.github.pylonmc.rebar.datatypes.RebarSerializers.BOOLEAN)),
+                    tier + " customized empty Vault retains explicit ON despite default OFF");
             BlockStorage.breakBlock(initiallyDisabled);
+            Block emptySpot = world.getBlockAt(8, 101, 2);
+            BasicVaultCell restoredEmpty = (BasicVaultCell) BlockStorage.placeBlock(emptySpot,
+                    NamespacedKey.fromString("vaultworks:" + tier),
+                    new BlockCreateContext.Default(null, emptySpot,
+                            BlockFace.NORTH, BlockFace.NORTH, emptyCustom, true));
+            check(restoredEmpty.isHologramEnabled() && restoredEmpty.getStoredAmount() == 0L,
+                    tier + " customized empty portable Vault survives replacement");
+            BlockStorage.breakBlock(restoredEmpty);
         }
         VaultWorks.instance().getConfig().set("display.hologram-default-enabled", true);
         BlockStorage.breakBlock(base);
