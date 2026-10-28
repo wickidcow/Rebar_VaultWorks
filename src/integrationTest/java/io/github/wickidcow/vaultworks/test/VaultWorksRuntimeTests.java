@@ -283,6 +283,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         verifyRegistrationPicker();
         verifyManualCursorTransfer();
         verifyCellGuiTitlesAndCargo();
+        verifyPerCellHolograms();
         verifyFastVaultPickup();
         verifyManualCompensation();
 
@@ -554,6 +555,133 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         RebarBlock last = BlockStorage.get(world.getBlockAt(8, 101, 2));
         if (last != null) BlockStorage.breakBlock(last);
         BlockStorage.breakBlock(base);
+    }
+
+
+    /**
+     * Validates the same native ItemDisplay used by both Vault tiers: one
+     * non-interactive entity at most, separately persisted ON/OFF preference,
+     * visibility requiring stock+power and outline requiring a Terminal.
+     */
+    private void verifyPerCellHolograms() throws Exception {
+        VaultPowerBase base = (VaultPowerBase) place("vault_power_base", 8, 100, 2);
+        for (String tier : List.of("basic_vault_cell", "powered_vault_cell")) {
+            VaultWorks.instance().getConfig().set("display.hologram-default-enabled", true);
+            BasicVaultCell cell = (BasicVaultCell) place(tier, 8, 101, 2);
+            power(base, true);
+            cell.updatePowerVisual(true);
+            Gui gui = cell.createGui();
+
+            check(cell.isHologramEnabled()
+                            && gui.getItem(40).getItemProvider(player).get().getType() == Material.GLOW_ITEM_FRAME,
+                    tier + " new cell defaults to enabled hologram toggle");
+            check(hologramDisplay(cell) == null, tier + " no floating item before registration");
+
+            ItemStack custom = new ItemStack(Material.EMERALD);
+            custom.editMeta(meta -> {
+                meta.displayName(net.kyori.adventure.text.Component.text("Hologram custom item"));
+                meta.getPersistentDataContainer().set(
+                        NamespacedKey.fromString("vaultworks:hologram_test"),
+                        PersistentDataType.STRING, "untouched");
+            });
+            call(cell, "setStoredState", custom, 12L);
+            org.bukkit.entity.ItemDisplay visible = hologramDisplay(cell);
+            check(visible != null && visible.getItemStack().isSimilar(custom)
+                            && !visible.isGlowing() && !cell.isHologramGlowing(),
+                    tier + " powered stocked cell shows exactly its registered item without network glow");
+
+            VaultTerminal terminal = (VaultTerminal) place("vault_terminal", 9, 100, 2);
+            call(cell, "refreshNetworkStatus");
+            org.bukkit.entity.ItemDisplay connected = hologramDisplay(cell);
+            check(connected != null && connected.isGlowing() && cell.isHologramGlowing(),
+                    tier + " Terminal connectivity enables item outline glow");
+            BlockStorage.breakBlock(terminal);
+            call(cell, "refreshNetworkStatus");
+            check(hologramDisplay(cell) != null && !hologramDisplay(cell).isGlowing(),
+                    tier + " unplugging Terminal switches outline off but leaves item visible");
+
+            long stored = cell.getStoredAmount();
+            click(gui, 40, player, ClickType.LEFT);
+            check(!cell.isHologramEnabled()
+                            && gui.getItem(40).getItemProvider(player).get().getType() == Material.ITEM_FRAME
+                            && hologramDisplay(cell) == null && cell.getStoredAmount() == stored,
+                    tier + " hologram toggle OFF removes display without touching item stock");
+            click(gui, 40, player, ClickType.SHIFT_LEFT);
+            check(!cell.isHologramEnabled(), tier + " shift-click cannot modify hologram toggle");
+            click(gui, 40, player, ClickType.RIGHT);
+            check(cell.isHologramEnabled() && hologramDisplay(cell) != null
+                            && cell.getStoredAmount() == stored,
+                    tier + " hologram toggle ON restores exactly one live display");
+
+            power(base, false);
+            cell.updatePowerVisual(false);
+            check(hologramDisplay(cell) == null, tier + " power loss hides registered hologram");
+            click(gui, 40, player, ClickType.LEFT);
+            check(!cell.isHologramEnabled(), tier + " hologram preference can be set while power is offline");
+            power(base, true);
+            cell.updatePowerVisual(true);
+            check(hologramDisplay(cell) == null, tier + " disabled hologram stays hidden when power returns");
+
+            ItemStack packed = cell.getDropItem(new BlockBreakContext.PluginBreak(cell.getBlock()));
+            Boolean persisted = packed.getPersistentDataContainer().get(
+                    NamespacedKey.fromString("vaultworks:hologram_enabled"),
+                    io.github.pylonmc.rebar.datatypes.RebarSerializers.BOOLEAN);
+            check(Boolean.FALSE.equals(persisted)
+                            && cell.getStoredAmount() == 12L,
+                    tier + " portable drop retains disabled hologram and full item count");
+            UUID endpoint = cell.getEndpointId();
+            BlockStorage.breakBlock(cell);
+            Block block = world.getBlockAt(8, 101, 2);
+            BasicVaultCell restored = (BasicVaultCell) BlockStorage.placeBlock(block,
+                    NamespacedKey.fromString("vaultworks:" + tier),
+                    new BlockCreateContext.Default(null, block,
+                            BlockFace.NORTH, BlockFace.NORTH, packed, true));
+            check(!restored.isHologramEnabled()
+                            && restored.getEndpointId().equals(endpoint)
+                            && restored.getStoredAmount() == 12L
+                            && hologramDisplay(restored) == null,
+                    tier + " relocation restores item, count, identity and disabled hologram");
+
+            // Zero stored quantity hides the item even when the registration is retained.
+            click(restored.createGui(), 40, player, ClickType.LEFT);
+            call(restored, "setStoredState", custom, 0L);
+            check(restored.isHologramEnabled() && restored.getStoredItem() != null
+                            && hologramDisplay(restored) == null,
+                    tier + " registered but empty cell never displays a fake stored item");
+            call(restored, "setStoredState", custom, 5L);
+            check(hologramDisplay(restored) != null, tier + " newly replenished cell restores hologram");
+
+            BlockStorage.breakBlock(restored);
+
+            VaultWorks.instance().getConfig().set("display.hologram-default-enabled", false);
+            BasicVaultCell initiallyDisabled = (BasicVaultCell) place(tier, 8, 101, 2);
+            check(!initiallyDisabled.isHologramEnabled()
+                            && initiallyDisabled.createGui().getItem(40).getItemProvider(player)
+                                .get().getType() == Material.ITEM_FRAME,
+                    tier + " changing config default affects new Vault Cell");
+            ItemStack emptyCustom = initiallyDisabled.getDropItem(
+                    new BlockBreakContext.PluginBreak(initiallyDisabled.getBlock()));
+            check(!emptyCustom.isSimilar(initiallyDisabled.getDefaultItem().createNewItemStack())
+                            && !initiallyDisabled.isHologramEnabled(),
+                    tier + " customized empty Vault retains its preference in portable drop");
+            BlockStorage.breakBlock(initiallyDisabled);
+        }
+        VaultWorks.instance().getConfig().set("display.hologram-default-enabled", true);
+        BlockStorage.breakBlock(base);
+    }
+
+    private org.bukkit.entity.ItemDisplay hologramDisplay(BasicVaultCell cell) {
+        String owner = cell.getBlock().getWorld().getUID() + ":" + cell.getBlock().getX()
+                + ":" + cell.getBlock().getY() + ":" + cell.getBlock().getZ();
+        return cell.getBlock().getWorld().getNearbyEntities(
+                        cell.getBlock().getLocation().add(0.5, 0.5, 0.5), 0.8, 0.8, 0.8)
+                .stream()
+                .filter(entity -> entity instanceof org.bukkit.entity.ItemDisplay)
+                .map(entity -> (org.bukkit.entity.ItemDisplay) entity)
+                .filter(display -> owner.equals(display.getPersistentDataContainer().get(
+                        NamespacedKey.fromString("vaultworks:vault_display_owner"),
+                        PersistentDataType.STRING)))
+                .findFirst().orElse(null);
     }
 
     private void verifyFastVaultPickup() throws Exception {
