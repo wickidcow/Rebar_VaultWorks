@@ -39,7 +39,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
             Class.forName("io.github.pylonmc.rebar.block.interfaces.ElectricRebarBlock", false, getClassLoader());
         } catch (ClassNotFoundException exception) {
             throw new IllegalStateException(
-                    "VaultWorks requires Rebar 0.44.2-26.2 or a compatible electricity-enabled build. "
+                    "VaultWorks requires Rebar 0.44.4-26.2 or a compatible electricity-enabled build. "
                             + "Install the matching Rebar server plugin for your Paper version.",
                     exception
             );

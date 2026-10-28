@@ -1,5 +1,7 @@
 # Current validation
 
+**Active VaultWorks PR #14 validation:** the build targets the same published Rebar `0.44.4-26.2` artifact as GridWorks (Java 25 / Paper 26.2). Its SHA-256 is checked in CI and its startup, storage, recovery and clean-restart checks run on that server. The older 0.44.2 results cited below are historical.
+
 See [0.3.0-rc.1 verification](RELEASE-0.3.0-rc.1.md) for released Rebar 0.44.2-26.2 tests, the administrative test power source and clean restart coverage. The earlier snapshot validation below is retained as history.
 
 # Electricity validation — 0.1 prototype (2026-09-30)
