@@ -115,6 +115,15 @@ jobs:
           grep -F 'PASS failed transfer locks survive clean restart' "$RUNNER_TEMP/vaultworks-runtime-2.log"
           grep -F 'PASS all source compensation survives restart despite inventory restore failure' "$RUNNER_TEMP/vaultworks-runtime-2.log"
 
+      - name: Upload PR-only review JAR
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: VaultWorks-PR-${{ github.event.pull_request.number }}
+          path: build/libs/Rebar_VaultWorks-*.jar
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Record smoke-tested raw JAR digest
         id: tested-jar
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
