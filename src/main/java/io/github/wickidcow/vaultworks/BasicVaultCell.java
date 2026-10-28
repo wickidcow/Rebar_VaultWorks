@@ -1120,7 +1120,9 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                                     : (online
                                             ? "Powered by the Vault Power Base below."
                                             : "Storage controls and cargo are locked until powered.")),
-                            Component.text(storedAmount > capacity ? "Over configured capacity — withdrawals remain safe." : "")
+                            Component.text(storedAmount > capacity ? "Over configured capacity — withdrawals remain safe." : ""),
+                            Component.text("Move Vault: sneak + mine with any pickaxe for instant pickup."),
+                            Component.text("The dropped Vault keeps its contents. Towny protections still apply.")
                     );
         }
 

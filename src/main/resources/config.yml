@@ -19,6 +19,12 @@ storage:
   # Players may enable purge per Vault Cell from its GUI.
   overflow-purge-default: false
 
+  # Native Vault blocks take ~75 seconds to break in Survival, regardless of pickaxe.
+  # Sneak + left-click with any pickaxe to break an actual VaultWorks cell immediately.
+  # Only normal player block-breaking is accelerated; Towny/WorldGuard can still cancel.
+  # A transfer-recovery-locked cell cannot be picked up.
+  fast-sneak-pickup: true
+
 # Read-only Vault Index topology safety bound.
 # Traversal follows only loaded Vault Link, Vault Index and Vault Power Base blocks.
 index:

@@ -282,6 +282,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
 
         verifyRegistrationPicker();
         verifyManualCursorTransfer();
+        verifyFastVaultPickup();
         verifyManualCompensation();
 
         VaultTestPowerSource source = (VaultTestPowerSource)place("test_power_source",6,100,2);
@@ -441,6 +442,91 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     tier + " cursor pickup obeys custom 16-stack item limit");
             cursor = null;
         }
+        RebarBlock last = BlockStorage.get(world.getBlockAt(8, 101, 2));
+        if (last != null) BlockStorage.breakBlock(last);
+        BlockStorage.breakBlock(base);
+    }
+
+
+    private void verifyFastVaultPickup() throws Exception {
+        VaultPowerBase base = (VaultPowerBase) place("vault_power_base", 8, 100, 2);
+        Player sneaking = (Player) Proxy.newProxyInstance(getClassLoader(), new Class<?>[]{Player.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getGameMode" -> GameMode.SURVIVAL;
+                    case "isSneaking" -> true;
+                    default -> Proxy.getInvocationHandler(player).invoke(player, method, args);
+                });
+        Player creative = (Player) Proxy.newProxyInstance(getClassLoader(), new Class<?>[]{Player.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getGameMode" -> GameMode.CREATIVE;
+                    case "isSneaking" -> true;
+                    default -> Proxy.getInvocationHandler(player).invoke(player, method, args);
+                });
+        ItemStack pickaxe = new ItemStack(Material.DIAMOND_PICKAXE);
+        for (String tier : List.of("basic_vault_cell", "powered_vault_cell")) {
+            BasicVaultCell vault = (BasicVaultCell) place(tier, 8, 101, 2);
+            power(base, true);
+            call(vault, "setStoredState", new ItemStack(Material.EMERALD), 12345L);
+
+            org.bukkit.event.block.BlockDamageEvent normal = new org.bukkit.event.block.BlockDamageEvent(
+                    player, vault.getBlock(), pickaxe, false);
+            Bukkit.getPluginManager().callEvent(normal);
+            check(!normal.getInstaBreak(), tier + " regular mining stays unchanged");
+
+            org.bukkit.event.block.BlockDamageEvent quick = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), pickaxe, false);
+            Bukkit.getPluginManager().callEvent(quick);
+            check(quick.getInstaBreak(), tier + " sneaking with pickaxe enables quick pickup");
+
+            org.bukkit.event.block.BlockDamageEvent wrongTool = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), new ItemStack(Material.STICK), false);
+            Bukkit.getPluginManager().callEvent(wrongTool);
+            check(!wrongTool.getInstaBreak(), tier + " non-pickaxes cannot instant-break cells");
+
+            org.bukkit.event.block.BlockDamageEvent creativeEvent = new org.bukkit.event.block.BlockDamageEvent(
+                    creative, vault.getBlock(), pickaxe, false);
+            Bukkit.getPluginManager().callEvent(creativeEvent);
+            check(!creativeEvent.getInstaBreak(), tier + " creative mode never uses survival pickup");
+
+            org.bukkit.event.block.BlockDamageEvent cancelled = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), pickaxe, false);
+            cancelled.setCancelled(true);
+            Bukkit.getPluginManager().callEvent(cancelled);
+            check(!cancelled.getInstaBreak() && BlockStorage.get(vault.getBlock()) == vault,
+                    tier + " prior cancelled damage cannot trigger quick pickup");
+
+            VaultWorks.instance().getConfig().set("storage.fast-sneak-pickup", false);
+            try {
+                org.bukkit.event.block.BlockDamageEvent disabled = new org.bukkit.event.block.BlockDamageEvent(
+                        sneaking, vault.getBlock(), pickaxe, false);
+                Bukkit.getPluginManager().callEvent(disabled);
+                check(!disabled.getInstaBreak(), tier + " configuration can disable quick pickup");
+            } finally {
+                VaultWorks.instance().getConfig().set("storage.fast-sneak-pickup", true);
+            }
+
+            power(base, false);
+            org.bukkit.event.block.BlockDamageEvent offline = new org.bukkit.event.block.BlockDamageEvent(
+                    sneaking, vault.getBlock(), pickaxe, false);
+            Bukkit.getPluginManager().callEvent(offline);
+            check(offline.getInstaBreak(), tier + " moving an unpowered cell is allowed");
+            power(base, true);
+
+            check(vault.getStoredAmount() == 12345L
+                            && vault.getDropItem(new BlockBreakContext.PlayerBreak(
+                                new org.bukkit.event.block.BlockBreakEvent(vault.getBlock(), sneaking)))
+                               .getPersistentDataContainer().has(
+                                    NamespacedKey.fromString("vaultworks:stored_amount")),
+                    tier + " real player-break drop contains packed storage data");
+        }
+
+        Block unrelated = world.getBlockAt(9, 105, 2);
+        unrelated.setType(Material.STONE);
+        org.bukkit.event.block.BlockDamageEvent unrelatedDamage = new org.bukkit.event.block.BlockDamageEvent(
+                sneaking, unrelated, pickaxe, false);
+        Bukkit.getPluginManager().callEvent(unrelatedDamage);
+        check(!unrelatedDamage.getInstaBreak(), "vanilla and unrelated blocks are untouched");
+        unrelated.setType(Material.AIR);
         RebarBlock last = BlockStorage.get(world.getBlockAt(8, 101, 2));
         if (last != null) BlockStorage.breakBlock(last);
         BlockStorage.breakBlock(base);
