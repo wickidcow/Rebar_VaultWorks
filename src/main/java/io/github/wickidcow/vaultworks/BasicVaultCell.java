@@ -119,6 +119,20 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             }
             getBlock().setBlockData(vault, false);
         }
+
+        // VaultWorks storage does not use the vanilla trial-chamber reward
+        // preview. Keep its random loot cycle out of our own item display.
+        if (getBlock().getState() instanceof org.bukkit.block.Vault vanilla) {
+            ItemStack preview = vanilla.getDisplayedItem();
+            if (vanilla.getActivationRange() != 0.0D
+                    || vanilla.getDeactivationRange() != 0.0D
+                    || (preview != null && !preview.isEmpty())) {
+                vanilla.setActivationRange(0.0D);
+                vanilla.setDeactivationRange(0.0D);
+                vanilla.setDisplayedItem(new ItemStack(Material.AIR));
+                vanilla.update(false, false);
+            }
+        }
     }
 
     protected long configuredCapacity(StoragePolicy policy) {
@@ -627,6 +641,7 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
         guiButtons.clear();
 
         VaultButton deposit = remember(new DepositButton());
+        VaultButton transfer = remember(new CursorTransferButton());
         VaultButton status = remember(new StatusButton());
         VaultButton registered = remember(new RegisteredItemButton());
         VaultButton withdraw = remember(new WithdrawButton());
@@ -639,12 +654,13 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
                 .setStructure(
                         "# # # # # # # # 0",
                         "# d # s # i # w 1",
-                        "# # # # # # # # 2",
+                        "# # # # t # # # 2",
                         "# p # c # r # k 3",
                         "# # # # # # # # 4"
                 )
                 .addIngredient('#', GuiItems.backgroundBlack())
                 .addIngredient('d', deposit)
+                .addIngredient('t', transfer)
                 .addIngredient('s', status)
                 .addIngredient('i', registered)
                 .addIngredient('w', withdraw)
@@ -782,6 +798,80 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             });
         }
         return picker;
+    }
+
+
+    /**
+     * Manual cursor-to-cell transfer. InvUI handles the button click itself,
+     * so this is a controlled action, not an independently stored inventory slot.
+     * No shift, hotbar-swap, drag or creative-clone click can mutate storage.
+     * Overflow purge deliberately never applies to these cursor transfers.
+     */
+    protected boolean transferCursor(Player player, ClickType clickType) {
+        if (clickType != ClickType.LEFT && clickType != ClickType.RIGHT) return false;
+        if (!requireOperational(player)) return false;
+        if (hasLegacyRecovery()) {
+            player.sendMessage(Component.text("Recover legacy Vault contents before using the transfer slot."));
+            return false;
+        }
+
+        ItemStack held = player.getItemOnCursor();
+        boolean singleItem = clickType == ClickType.RIGHT;
+
+        if (held != null && !held.isEmpty()) {
+            if (isVaultCell(held)) {
+                player.sendMessage(Component.text("Vault Cells cannot be stored inside Vault Cells."));
+                return false;
+            }
+            if (!canStore(held) || (storedItem == null && storedAmount != 0L)) {
+                player.sendMessage(Component.text("This Vault is registered to a different item type."));
+                return false;
+            }
+
+            int toStore = VaultCursorTransferMath.depositAmount(
+                    held.getAmount(), storedAmount, getCapacity(), singleItem);
+            if (toStore <= 0) {
+                player.sendMessage(Component.text("This Vault is full. Items on your cursor were not consumed."));
+                return false;
+            }
+
+            boolean firstRegistration = storedItem == null;
+            VaultTransferRollback recovery = new VaultTransferRollback(
+                    this, player, List.of(this), "cell cursor deposit");
+            try {
+                player.setItemOnCursor(held.getAmount() == toStore
+                        ? null : held.asQuantity(held.getAmount() - toStore));
+                setStoredState(held.asOne(), storedAmount + toStore);
+                if (firstRegistration) VaultDisplayManager.update(this);
+                refreshGuiItems();
+                return true;
+            } catch (RuntimeException failure) {
+                recoverTransfer(player, recovery, failure);
+                return false;
+            }
+        }
+
+        if (storedItem == null || storedAmount <= 0L) {
+            player.sendMessage(Component.text("This Vault has no items to withdraw."));
+            return false;
+        }
+
+        int toTake = VaultCursorTransferMath.withdrawAmount(
+                storedAmount, 0, storedItem.getMaxStackSize(), singleItem);
+        if (toTake <= 0) return false;
+
+        VaultTransferRollback recovery = new VaultTransferRollback(
+                this, player, List.of(this), "cell cursor withdrawal");
+        try {
+            player.setItemOnCursor(storedItem.asQuantity(toTake));
+            storedAmount -= toTake;
+            touchRevision();
+            refreshGuiItems();
+            return true;
+        } catch (RuntimeException failure) {
+            recoverTransfer(player, recovery, failure);
+            return false;
+        }
     }
 
     protected void quickDeposit(Player player) {
@@ -1065,6 +1155,28 @@ public class BasicVaultCell extends RebarBlock implements GuiRebarBlock, BlockBr
             if (storedItem == null) {
                 if (clickType == ClickType.LEFT || clickType == ClickType.RIGHT) openRegistrationPicker(player);
             }
+        }
+    }
+
+
+    private final class CursorTransferButton extends VaultButton {
+        @Override
+        public @NotNull ItemProvider getItemProvider(@NotNull Player viewer) {
+            return ItemStackBuilder.of(Material.HOPPER)
+                    .name(Component.text("Manual Transfer Slot"))
+                    .lore(
+                            Component.text("Hold a matching item on your cursor, then click."),
+                            Component.text("With item: LEFT deposits stack, RIGHT deposits one."),
+                            Component.text("Empty cursor: LEFT takes stack, RIGHT takes one."),
+                            Component.text("First deposit registers an empty Vault automatically."),
+                            Component.text("Never destroys excess items or bypasses safety locks."),
+                            Component.text("Stored: " + format(storedAmount) + " / " + format(getCapacity()))
+                    );
+        }
+
+        @Override
+        public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull Click click) {
+            transferCursor(player, clickType);
         }
     }
 

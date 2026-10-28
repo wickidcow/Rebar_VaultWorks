@@ -60,7 +60,18 @@ public final class VaultDisplayManager {
         ItemStack shown = registered.asOne();
         display.setItemStack(shown);
         display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
-        display.setBillboard(Display.Billboard.CENTER);
+        // Freeze the stored model; do not swivel it toward every passing player.
+        display.setBillboard(Display.Billboard.FIXED);
+        if (cell.getBlock().getBlockData() instanceof org.bukkit.block.data.Directional facing) {
+            float yaw = switch (facing.getFacing()) {
+                case NORTH -> 180.0F;
+                case SOUTH -> 0.0F;
+                case EAST -> -90.0F;
+                case WEST -> 90.0F;
+                default -> 0.0F;
+            };
+            display.setRotation(yaw, 0.0F);
+        }
         display.setGravity(false);
         display.setInvulnerable(true);
         display.setSilent(true);

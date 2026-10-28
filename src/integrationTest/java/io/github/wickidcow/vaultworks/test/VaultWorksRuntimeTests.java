@@ -28,6 +28,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
     private int checks;
     private Location playerLocation;
     private PlayerInventory playerInventory;
+    private ItemStack cursor;
     private Player player;
     private VaultPowerBase liveBase;
     private final List<RebarBlock> fixtures = new ArrayList<>();
@@ -50,6 +51,12 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                 UUID playerId = UUID.randomUUID();
                 player = (Player) Proxy.newProxyInstance(getClassLoader(), new Class<?>[]{Player.class}, (proxy, method, args) -> switch(method.getName()) {
                     case "getInventory" -> playerInventory;
+                    case "getItemOnCursor" -> cursor == null ? new ItemStack(Material.AIR) : cursor.clone();
+                    case "setItemOnCursor" -> {
+                        ItemStack next = (ItemStack) args[0];
+                        cursor = next == null || next.isEmpty() ? null : next.clone();
+                        yield null;
+                    }
                     case "getLocation" -> playerLocation.clone();
                     case "getWorld" -> playerLocation.getWorld();
                     case "getUniqueId" -> playerId;
@@ -274,6 +281,7 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         BlockStorage.breakBlock(emptyB);BlockStorage.breakBlock(emptyA);BlockStorage.breakBlock(emptyBase);
 
         verifyRegistrationPicker();
+        verifyManualCursorTransfer();
         verifyManualCompensation();
 
         VaultTestPowerSource source = (VaultTestPowerSource)place("test_power_source",6,100,2);
@@ -336,6 +344,106 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
                     && cell.getStoredItem() == null && playerInventory.getItem(9).getAmount() == 12,
                     tier + " registration failure restores inventory and cell");
         }
+    }
+
+
+    private void verifyManualCursorTransfer() throws Exception {
+        VaultPowerBase base = (VaultPowerBase) place("vault_power_base", 8, 100, 2);
+        for (String tier : List.of("basic_vault_cell", "powered_vault_cell")) {
+            BasicVaultCell cell = (BasicVaultCell) place(tier, 8, 101, 2);
+            power(base, true);
+            playerInventory.clear();
+            cursor = null;
+
+            org.bukkit.block.Vault vanilla = (org.bukkit.block.Vault) cell.getBlock().getState();
+            check(vanilla.getActivationRange() == 0.0D
+                            && vanilla.getDeactivationRange() == 0.0D
+                            && vanilla.getDisplayedItem().isEmpty(),
+                    tier + " suppresses randomized vanilla Vault preview");
+
+            Gui gui = cell.createGui();
+            check(gui.getItem(22) != null
+                            && gui.getItem(22).getItemProvider(player).get().getType() == Material.HOPPER,
+                    tier + " has a central manual transfer slot");
+
+            ItemStack sample = new ItemStack(Material.DIAMOND, 5);
+            sample.editMeta(meta -> meta.displayName(
+                    net.kyori.adventure.text.Component.text("Custom transferred diamond")));
+            cursor = sample.clone();
+            click(gui, 22, player, ClickType.RIGHT);
+            check(cell.getStoredAmount() == 1 && cursor.getAmount() == 4
+                            && cell.getStoredItem().isSimilar(sample),
+                    tier + " right-click registers one exact custom item");
+
+            VaultDisplayManager.update(cell);
+            check(world.getNearbyEntities(cell.getBlock().getLocation().add(0.5, 0.5, 0.5), 1, 1, 1)
+                            .stream().filter(entity -> entity instanceof org.bukkit.entity.ItemDisplay)
+                            .map(entity -> (org.bukkit.entity.ItemDisplay) entity)
+                            .anyMatch(display -> display.getBillboard() == org.bukkit.entity.Display.Billboard.FIXED),
+                    tier + " stored item display faces a fixed direction");
+
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == 5 && cursor == null,
+                    tier + " left-click deposits remaining held stack");
+            click(gui, 22, player, ClickType.RIGHT);
+            check(cell.getStoredAmount() == 4 && cursor != null && cursor.getAmount() == 1,
+                    tier + " right-click with empty cursor picks up one item");
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == 5 && cursor == null,
+                    tier + " clicking while holding item deposits instead of duplicating");
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == 0 && cursor != null && cursor.getAmount() == 5
+                            && cursor.isSimilar(sample),
+                    tier + " left-click picks up a stack without stripping custom metadata");
+
+            cursor = new ItemStack(Material.DIAMOND, 3);
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == 0 && cursor.getAmount() == 3,
+                    tier + " rejects a same-material item with different metadata");
+            cursor = sample.asQuantity(9);
+            call(cell, "setStoredState", sample, cell.getCapacity() - 2L);
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == cell.getCapacity() && cursor.getAmount() == 7,
+                    tier + " partial deposit preserves excess on cursor");
+            call(cell, "togglePurge", player);
+            click(gui, 22, player, ClickType.LEFT);
+            check(cell.getStoredAmount() == cell.getCapacity() && cursor.getAmount() == 7,
+                    tier + " manual transfer cannot overflow-purge");
+
+            power(base, false);
+            click(gui, 22, player, ClickType.RIGHT);
+            check(cell.getStoredAmount() == cell.getCapacity() && cursor.getAmount() == 7,
+                    tier + " power loss blocks manual cursor transfer");
+            power(base, true);
+
+            call(cell, "setStoredState", sample, 4L);
+            cursor = sample.asQuantity(3);
+            java.util.concurrent.atomic.AtomicBoolean failOnce = new java.util.concurrent.atomic.AtomicBoolean(true);
+            Player failing = (Player) Proxy.newProxyInstance(getClassLoader(), new Class<?>[]{Player.class},
+                    (proxy, method, args) -> {
+                        Object result = Proxy.getInvocationHandler(player).invoke(player, method, args);
+                        if (method.getName().equals("setItemOnCursor") && failOnce.getAndSet(false)) {
+                            throw new IllegalStateException("simulated cursor update was applied before throwing");
+                        }
+                        return result;
+                    });
+            click(gui, 22, failing, ClickType.LEFT);
+            check(cell.getStoredAmount() == 4 && cursor != null && cursor.getAmount() == 3
+                            && !cell.hasRecoveryLock(),
+                    tier + " failed cursor setter restores the carried stack and cell count");
+
+            cursor = null;
+            call(cell, "setStoredState", sample, 0L);
+            call(cell, "clearRegistration", player);
+            call(cell, "setStoredState", new ItemStack(Material.SNOWBALL), 20L);
+            click(gui, 22, player, ClickType.LEFT);
+            check(cursor != null && cursor.getAmount() == 16 && cell.getStoredAmount() == 4,
+                    tier + " cursor pickup obeys custom 16-stack item limit");
+            cursor = null;
+        }
+        RebarBlock last = BlockStorage.get(world.getBlockAt(8, 101, 2));
+        if (last != null) BlockStorage.breakBlock(last);
+        BlockStorage.breakBlock(base);
     }
 
     private void verifyManualCompensation() throws Exception {
@@ -493,7 +601,8 @@ public final class VaultWorksRuntimeTests extends JavaPlugin {
         ElectricConsumerNode consumer=block.getElectricNode("consumer_0",ElectricConsumerNode.class);
         Field f=ElectricConsumerNode.class.getDeclaredField("isPowered"); f.setAccessible(true); f.set(consumer,value);
     }
-    private void click(Gui gui,int slot,Player who) { gui.getItem(slot).handleClick(ClickType.LEFT,who,null); }
+    private void click(Gui gui,int slot,Player who) { click(gui,slot,who,ClickType.LEFT); }
+    private void click(Gui gui,int slot,Player who,ClickType type) { gui.getItem(slot).handleClick(type,who,null); }
     private static long count(Inventory inv,Material type) { return Arrays.stream(inv.getStorageContents()).filter(Objects::nonNull).filter(i->i.getType()==type).mapToLong(ItemStack::getAmount).sum(); }
     private void check(boolean condition,String text) { if(!condition)throw new AssertionError(text); checks++; getLogger().info("PASS "+text); }
     private static Object defaultValue(Class<?> type) { if(!type.isPrimitive()||type==void.class)return null; if(type==boolean.class)return false; if(type==double.class)return 0D; if(type==float.class)return 0F; if(type==long.class)return 0L; return 0; }
