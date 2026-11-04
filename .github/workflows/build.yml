@@ -95,6 +95,9 @@ jobs:
           mkdir -p .upstream/rebar
           curl --fail --location --retry 3 https://github.com/pylonmc/rebar/releases/download/0.44.2-26.2/rebar-0.44.2-26.2.jar -o .upstream/rebar/rebar.jar
           echo 'cfab37deeaa54771d7b838bdfa596a4ec8640771ffa293b573c12837bd7b423e  .upstream/rebar/rebar.jar' | sha256sum -c -
+          mkdir -p .upstream/pylon
+          curl --fail --location --retry 3 https://github.com/pylonmc/pylon/releases/download/0.42.2-26.2/pylon-0.42.2-26.2.jar -o .upstream/pylon/pylon.jar
+          echo 'ad5743ca29aeda252acc7d490e1acb8259f642e095e3745174533e672091c570  .upstream/pylon/pylon.jar' | sha256sum -c -
 
       - name: Verify real storage operations and clean restart
         shell: bash
@@ -105,7 +108,7 @@ jobs:
           printf 'server-ip=127.0.0.1\nonline-mode=false\nview-distance=2\nsimulation-distance=2\n' > run/server.properties
           for ATTEMPT in 1 2; do
             LOG_FILE="$RUNNER_TEMP/vaultworks-runtime-$ATTEMPT.log"
-            timeout 240 ./gradlew runServer -Prebar.serverJar="$GITHUB_WORKSPACE/.upstream/rebar/rebar.jar" -Pvaultworks.runtimeTests --no-daemon --console=plain > "$LOG_FILE" 2>&1 || { cat "$LOG_FILE"; exit 1; }
+            timeout 240 ./gradlew runServer -Prebar.serverJar="$GITHUB_WORKSPACE/.upstream/rebar/rebar.jar" -Ppylon.serverJar="$GITHUB_WORKSPACE/.upstream/pylon/pylon.jar" -Pvaultworks.runtimeTests --no-daemon --console=plain > "$LOG_FILE" 2>&1 || { cat "$LOG_FILE"; exit 1; }
             grep -F 'VAULTWORKS RUNTIME PASS:' "$LOG_FILE" || { cat "$LOG_FILE"; exit 1; }
             grep -F 'VaultWorks Doctor result: PASS' "$LOG_FILE" || { cat "$LOG_FILE"; exit 1; }
             if grep -Eq 'VAULTWORKS RUNTIME FAIL|Error occurred while (enabling|disabling) VaultWorks' "$LOG_FILE"; then cat "$LOG_FILE"; exit 1; fi
