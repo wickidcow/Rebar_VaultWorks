@@ -43,7 +43,8 @@ VaultWorks offers `recipes.difficulty: HARD | BALANCED | CLASSIC` in `plugins/Va
 The default is **HARD**. Pylon is an optional dependency only in CLASSIC mode; HARD and
 BALANCED require Pylon to be enabled and to register the specific ingredients listed below.
 When the configured progression cannot be loaded, VaultWorks logs the missing dependency
-and disables itself rather than silently substituting cheaper items.
+and disables **all VaultWorks crafting recipes**, not the storage plugin. Existing vaults
+remain accessible; no cheaper recipe is silently substituted.
 
 Crafted VaultWorks and Pylon item ingredients are matched to their **exact registered item
 identities**; renamed vanilla items cannot impersonate them. All tiers retain their existing
