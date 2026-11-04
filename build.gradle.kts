@@ -36,6 +36,7 @@ bukkit {
     version = project.version.toString()
     apiVersion = minecraftVersion
     depend = listOf("Rebar")
+    softDepend = listOf("Pylon")
     load = net.minecrell.pluginyml.bukkit.BukkitPluginDescription.PluginLoadOrder.STARTUP
     authors = listOf("wickidcow")
     description = "Distributed powered storage, searchable terminals and wireless Vault access for Rebar."
