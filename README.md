@@ -12,7 +12,7 @@ There is no magic global inventory object and no world-wide storage scan.
 
 ## Project status
 
-**0.3.0-rc.2: release-candidate storage network with transactional and wireless access.**
+**0.3.0-rc.3: storage network release candidate with HARD Pylon crafting progression.**
 
 Available now:
 
@@ -35,7 +35,7 @@ Available now:
 
 Requires **Paper 26.2, Java 25, and Rebar 0.44.2-26.2**. The released Rebar API and server JAR are pinned for this build. Older Rebar versions without electricity are unsupported.
 
-[Download the rolling raw 0.3.0-rc.2 JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.3.0-rc.2.jar). Place it directly in `plugins/` and restart. The rolling development JAR is published only after the main branch passes build, package, live Paper/Rebar startup, `/vaultworks doctor`, clean shutdown, and byte-for-byte rebuild verification.
+[Download the rolling raw 0.3.0-rc.3 JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.3.0-rc.3.jar). Place it directly in `plugins/` and restart. The rolling development JAR is published only after the main branch passes build, package, live Paper/Rebar startup, `/vaultworks doctor`, clean shutdown, and byte-for-byte rebuild verification.
 
 ### Storage crafting difficulty (HARD by default)
 
