@@ -1,3 +1,13 @@
+# VaultWorks survival crafting progression.
+# HARD (default): requires Pylon's steel, cargo controllers, capacitors and igneous composite.
+# BALANCED: uses Pylon's sheet metals and cargo controllers at lower cost.
+# CLASSIC: preserves the original vanilla/VaultWorks-only crafting recipes.
+# On HARD/BALANCED, missing Pylon items disable VaultWorks during startup instead of
+# silently making easier recipes available. Changing difficulty does not alter placed
+# cells, contents, portable cell items, capacities or saved network data.
+recipes:
+  difficulty: HARD
+
 # One Vault Power Base supplies one contiguous column of up to six Vault Cells.
 # Power is consumed by the base; Vault Cells themselves have no visible wire port.
 power:
