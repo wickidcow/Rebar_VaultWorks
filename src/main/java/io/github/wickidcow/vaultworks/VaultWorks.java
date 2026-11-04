@@ -67,10 +67,9 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
             Bukkit.getPluginManager().disablePlugin(this);
             return;
         }
-        if (!checkPylonIngredients(recipeDifficulty)) {
-            Bukkit.getPluginManager().disablePlugin(this);
-            return;
-        }
+        // Keep storage available even if the configured crafting progression is unavailable.
+        // Never substitute cheaper recipes when Pylon is missing.
+        final boolean canRegisterRecipes = checkPylonIngredients(recipeDifficulty);
         double legacyWatts = getConfig().getDouble("power.watts", 48.0D);
         policy = new PowerPolicy(
                 getConfig().getDouble("power.base-watts", legacyWatts),
@@ -181,6 +180,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         RebarBlock.register(poweredKey, Material.VAULT, PoweredVaultCell.class);
 
 
+        if (canRegisterRecipes) {
         recipe(new ShapedRecipe(circuitKey, circuitItem).shape("CRC", "RQR", "CRC")
                 .setIngredient('C', Material.COPPER_INGOT)
                 .setIngredient('R', Material.REDSTONE)
@@ -260,12 +260,14 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
                 .setIngredient('W', exact(waferItem))
                 .setIngredient('E', hardOnly(recipeDifficulty, Material.ENDER_PEARL, "capacitor_1_kj"))
                 .setIngredient('C', exact(basicItem)));
+        }
 
-        if (recipes.size() != VaultWorksContentCatalog.ALL_IDS.size()) {
+        int expectedRecipes = canRegisterRecipes ? VaultWorksContentCatalog.ALL_IDS.size() : 0;
+        if (recipes.size() != expectedRecipes) {
             throw new IllegalStateException(
                     "VaultWorks recipe count does not match content catalog: "
                             + recipes.size() + " != "
-                            + VaultWorksContentCatalog.ALL_IDS.size()
+                            + expectedRecipes
             );
         }
 
@@ -290,7 +292,8 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
         getLogger().info(
                 "Validated " + VaultWorksContentCatalog.ALL_IDS.size()
-                        + " VaultWorks content entries and survival recipes."
+                        + " VaultWorks content entries. Active survival recipes: " + recipes.size()
+                        + " (" + recipeDifficulty + ")."
         );
         getLogger().info(
                 "VaultWorks ready: powered portable storage, transactional terminals, explicit indexing and loaded-only wireless access."
@@ -318,15 +321,17 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         }
         if (!Bukkit.getPluginManager().isPluginEnabled("Pylon")) {
             getLogger().severe("VaultWorks " + difficulty
-                    + " recipes require the Pylon addon to be enabled before VaultWorks. "
-                    + "Install/enable Pylon or set recipes.difficulty to CLASSIC.");
+                    + " recipes require the Pylon addon. All VaultWorks crafting recipes "
+                    + "are disabled until Pylon is installed/enabled or CLASSIC is selected; "
+                    + "existing Vault storage remains available.");
             return false;
         }
         for (String item : difficulty.requiredPylonItems()) {
             NamespacedKey key = new NamespacedKey("pylon", item);
             if (RebarRegistry.ITEMS.get(key) == null) {
                 getLogger().severe("VaultWorks " + difficulty + " recipes require missing Pylon item "
-                        + key + ". Install a compatible Pylon version or select CLASSIC recipes.");
+                        + key + ". All VaultWorks crafting recipes are disabled until "
+                        + "the dependency is restored or CLASSIC is selected. Stored data is unaffected.");
                 return false;
             }
         }
