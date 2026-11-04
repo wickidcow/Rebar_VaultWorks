@@ -59,6 +59,7 @@ bukkit {
 
 tasks.runServer {
     providers.gradleProperty("rebar.serverJar").orNull?.let { pluginJars.from(file(it)) }
+    providers.gradleProperty("pylon.serverJar").orNull?.let { pluginJars.from(file(it)) }
     minecraftVersion(minecraftVersion)
     maxHeapSize = "1G"
     jvmArgs("-Dcom.mojang.eula.agree=true", "-Dterminal.jline=false", "-Dterminal.ansi=false")
