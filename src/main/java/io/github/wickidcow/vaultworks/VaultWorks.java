@@ -6,9 +6,11 @@ import io.github.pylonmc.rebar.content.guide.RebarGuide;
 import io.github.pylonmc.rebar.guide.button.PageButton;
 import io.github.pylonmc.rebar.guide.pages.base.SimpleStaticGuidePage;
 import io.github.pylonmc.rebar.item.RebarItem;
+import io.github.pylonmc.rebar.item.RebarItemSchema;
 import io.github.pylonmc.rebar.item.builder.ItemStackBuilder;
 import io.github.pylonmc.rebar.recipe.RecipeType;
 import io.github.pylonmc.rebar.recipe.vanilla.ShapedRebarRecipe;
+import io.github.pylonmc.rebar.registry.RebarRegistry;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +59,17 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         Bukkit.getPluginManager().registerEvents(deleteConfirmations, this);
         saveDefaultConfig();
         migrateConfig();
+        final VaultRecipeDifficulty recipeDifficulty;
+        try {
+            recipeDifficulty = VaultRecipeDifficulty.parse(getConfig().getString("recipes.difficulty", "HARD"));
+        } catch (IllegalArgumentException exception) {
+            getLogger().severe(exception.getMessage());
+            Bukkit.getPluginManager().disablePlugin(this);
+            return;
+        }
+        // Keep storage available even if the configured crafting progression is unavailable.
+        // Never substitute cheaper recipes when Pylon is missing.
+        final boolean canRegisterRecipes = checkPylonIngredients(recipeDifficulty);
         double legacyWatts = getConfig().getDouble("power.watts", 48.0D);
         policy = new PowerPolicy(
                 getConfig().getDouble("power.base-watts", legacyWatts),
@@ -167,19 +180,20 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
         RebarBlock.register(poweredKey, Material.VAULT, PoweredVaultCell.class);
 
 
+        if (canRegisterRecipes) {
         recipe(new ShapedRecipe(circuitKey, circuitItem).shape("CRC", "RQR", "CRC")
                 .setIngredient('C', Material.COPPER_INGOT)
                 .setIngredient('R', Material.REDSTONE)
                 .setIngredient('Q', Material.QUARTZ));
 
         recipe(new ShapedRecipe(waferKey, waferItem).shape("QAQ", "ACA", "QAQ")
-                .setIngredient('Q', Material.QUARTZ)
+                .setIngredient('Q', hardOnly(recipeDifficulty, Material.QUARTZ, "copper_sheet"))
                 .setIngredient('A', Material.AMETHYST_SHARD)
                 .setIngredient('C', exact(circuitItem)));
 
         recipe(new ShapedRecipe(latticeKey, latticeItem).shape("QCQ", "CWC", "QCQ")
                 .setIngredient('Q', Material.QUARTZ)
-                .setIngredient('C', Material.COPPER_INGOT)
+                .setIngredient('C', tiered(recipeDifficulty, Material.COPPER_INGOT, "copper_sheet", "bronze_sheet"))
                 .setIngredient('W', exact(waferItem)));
 
         recipe(new ShapedRecipe(linkKey, linkItem.asQuantity(8)).shape("CWC", "RQR", "CWC")
@@ -192,7 +206,7 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
                 .setIngredient('L', exact(latticeItem))
                 .setIngredient('W', exact(waferItem))
                 .setIngredient('E', Material.ENDER_EYE)
-                .setIngredient('C', Material.COMPARATOR));
+                .setIngredient('C', hardOnly(recipeDifficulty, Material.COMPARATOR, "cargo_controller")));
 
         recipe(new ShapedRecipe(terminalKey, terminalItem).shape("WIW", "ECE", "WIW")
                 .setIngredient('W', exact(waferItem))
@@ -223,34 +237,37 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
                 .setIngredient('T', exact(terminalItem)));
 
         recipe(new ShapedRecipe(powerBaseKey, powerBaseItem).shape("CRC", "LUL", "CRC")
-                .setIngredient('C', Material.COPPER_INGOT)
+                .setIngredient('C', tiered(recipeDifficulty, Material.COPPER_INGOT, "bronze_sheet", "steel_sheet"))
                 .setIngredient('R', Material.REDSTONE)
                 .setIngredient('L', exact(latticeItem))
-                .setIngredient('U', Material.COPPER_BULB));
+                .setIngredient('U', hardOnly(recipeDifficulty, Material.COPPER_BULB, "capacitor_1_kj")));
 
         recipe(new ShapedRecipe(cargoNodeKey, cargoNodeItem).shape("CRC", "WHW", "CRC")
-                .setIngredient('C', Material.COPPER_INGOT)
+                .setIngredient('C', tiered(recipeDifficulty, Material.COPPER_INGOT, "copper_sheet", "copper_sheet"))
                 .setIngredient('R', Material.REDSTONE)
                 .setIngredient('W', exact(waferItem))
-                .setIngredient('H', Material.HOPPER));
+                .setIngredient('H', hardOnly(recipeDifficulty, Material.HOPPER, "cargo_controller")));
 
-        recipe(new ShapedRecipe(basicKey, basicItem).shape("LCL", "CBC", "LCL")
+        recipe(new ShapedRecipe(basicKey, basicItem).shape("LSL", "GBG", "LSL")
                 .setIngredient('L', exact(latticeItem))
-                .setIngredient('C', Material.COPPER_INGOT)
+                .setIngredient('S', tiered(recipeDifficulty, Material.COPPER_INGOT, "bronze_sheet", "steel_sheet"))
+                .setIngredient('G', tiered(recipeDifficulty, Material.COPPER_INGOT, "cargo_controller", "cargo_controller"))
                 .setIngredient('B', Material.BARREL));
 
         // A filled cell has extra portable PDC and therefore will not match this exact empty-cell upgrade ingredient.
         recipe(new ShapedRecipe(poweredKey, poweredItem).shape("QWQ", "ECE", "QWQ")
-                .setIngredient('Q', Material.QUARTZ)
+                .setIngredient('Q', tiered(recipeDifficulty, Material.QUARTZ, "steel_sheet", "igneous_composite"))
                 .setIngredient('W', exact(waferItem))
-                .setIngredient('E', Material.ENDER_PEARL)
+                .setIngredient('E', hardOnly(recipeDifficulty, Material.ENDER_PEARL, "capacitor_1_kj"))
                 .setIngredient('C', exact(basicItem)));
+        }
 
-        if (recipes.size() != VaultWorksContentCatalog.ALL_IDS.size()) {
+        int expectedRecipes = canRegisterRecipes ? VaultWorksContentCatalog.ALL_IDS.size() : 0;
+        if (recipes.size() != expectedRecipes) {
             throw new IllegalStateException(
                     "VaultWorks recipe count does not match content catalog: "
                             + recipes.size() + " != "
-                            + VaultWorksContentCatalog.ALL_IDS.size()
+                            + expectedRecipes
             );
         }
 
@@ -275,7 +292,8 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
 
         getLogger().info(
                 "Validated " + VaultWorksContentCatalog.ALL_IDS.size()
-                        + " VaultWorks content entries and survival recipes."
+                        + " VaultWorks content entries. Active survival recipes: " + recipes.size()
+                        + " (" + recipeDifficulty + ")."
         );
         getLogger().info(
                 "VaultWorks ready: powered portable storage, transactional terminals, explicit indexing and loaded-only wireless access."
@@ -295,6 +313,54 @@ public final class VaultWorks extends JavaPlugin implements RebarAddon {
             getLogger().info("Migrated legacy fixed Vault power load to base-watts="
                     + legacyWatts + " with watts-per-vault=0 to preserve existing behavior.");
         }
+    }
+
+    private boolean checkPylonIngredients(VaultRecipeDifficulty difficulty) {
+        if (!difficulty.requiresPylon()) {
+            return true;
+        }
+        if (!Bukkit.getPluginManager().isPluginEnabled("Pylon")) {
+            getLogger().severe("VaultWorks " + difficulty
+                    + " recipes require the Pylon addon. All VaultWorks crafting recipes "
+                    + "are disabled until Pylon is installed/enabled or CLASSIC is selected; "
+                    + "existing Vault storage remains available.");
+            return false;
+        }
+        for (String item : difficulty.requiredPylonItems()) {
+            NamespacedKey key = new NamespacedKey("pylon", item);
+            if (RebarRegistry.ITEMS.get(key) == null) {
+                getLogger().severe("VaultWorks " + difficulty + " recipes require missing Pylon item "
+                        + key + ". All VaultWorks crafting recipes are disabled until "
+                        + "the dependency is restored or CLASSIC is selected. Stored data is unaffected.");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static RecipeChoice pylonItem(String id) {
+        NamespacedKey key = new NamespacedKey("pylon", id);
+        RebarItemSchema schema = RebarRegistry.ITEMS.get(key);
+        if (schema == null) {
+            throw new IllegalStateException("Required Pylon recipe item was not registered: " + key);
+        }
+        // Use Rebar's registered template, never a vanilla lookalike with the same material.
+        return exact(schema.createNewItemStack());
+    }
+
+    private static RecipeChoice tiered(VaultRecipeDifficulty difficulty, Material classic,
+                                       String balanced, String hard) {
+        return switch (difficulty) {
+            case CLASSIC -> new RecipeChoice.MaterialChoice(classic);
+            case BALANCED -> pylonItem(balanced);
+            case HARD -> pylonItem(hard);
+        };
+    }
+
+    private static RecipeChoice hardOnly(VaultRecipeDifficulty difficulty, Material classic, String hard) {
+        return difficulty == VaultRecipeDifficulty.HARD
+                ? pylonItem(hard)
+                : new RecipeChoice.MaterialChoice(classic);
     }
 
     private static RecipeChoice exact(ItemStack stack) {

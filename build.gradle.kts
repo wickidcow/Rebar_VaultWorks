@@ -36,6 +36,7 @@ bukkit {
     version = project.version.toString()
     apiVersion = minecraftVersion
     depend = listOf("Rebar")
+    softDepend = listOf("Pylon")
     load = net.minecrell.pluginyml.bukkit.BukkitPluginDescription.PluginLoadOrder.STARTUP
     authors = listOf("wickidcow")
     description = "Distributed powered storage, searchable terminals and wireless Vault access for Rebar."
@@ -58,6 +59,7 @@ bukkit {
 
 tasks.runServer {
     providers.gradleProperty("rebar.serverJar").orNull?.let { pluginJars.from(file(it)) }
+    providers.gradleProperty("pylon.serverJar").orNull?.let { pluginJars.from(file(it)) }
     minecraftVersion(minecraftVersion)
     maxHeapSize = "1G"
     jvmArgs("-Dcom.mojang.eula.agree=true", "-Dterminal.jline=false", "-Dterminal.ansi=false")

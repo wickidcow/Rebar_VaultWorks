@@ -12,7 +12,7 @@ There is no magic global inventory object and no world-wide storage scan.
 
 ## Project status
 
-**0.3.0-rc.2: release-candidate storage network with transactional and wireless access.**
+**0.3.0-rc.3: storage network release candidate with HARD Pylon crafting progression.**
 
 Available now:
 
@@ -35,7 +35,45 @@ Available now:
 
 Requires **Paper 26.2, Java 25, and Rebar 0.44.2-26.2**. The released Rebar API and server JAR are pinned for this build. Older Rebar versions without electricity are unsupported.
 
-[Download the rolling raw 0.3.0-rc.2 JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.3.0-rc.2.jar). Place it directly in `plugins/` and restart. The rolling development JAR is published only after the main branch passes build, package, live Paper/Rebar startup, `/vaultworks doctor`, clean shutdown, and byte-for-byte rebuild verification.
+[Download the rolling raw 0.3.0-rc.3 JAR](https://github.com/wickidcow/Rebar_VaultWorks/releases/download/dev-build/Rebar_VaultWorks-0.3.0-rc.3.jar). Place it directly in `plugins/` and restart. The rolling development JAR is published only after the main branch passes build, package, live Paper/Rebar startup, `/vaultworks doctor`, clean shutdown, and byte-for-byte rebuild verification.
+
+### Storage crafting difficulty (HARD by default)
+
+VaultWorks offers `recipes.difficulty: HARD | BALANCED | CLASSIC` in `plugins/VaultWorks/config.yml`.
+The default is **HARD**. Pylon is an optional dependency only in CLASSIC mode; HARD and
+BALANCED require Pylon to be enabled and to register the specific ingredients listed below.
+When the configured progression cannot be loaded, VaultWorks logs the missing dependency
+and disables **all VaultWorks crafting recipes**, not the storage plugin. Existing vaults
+remain accessible; no cheaper recipe is silently substituted.
+
+Crafted VaultWorks and Pylon item ingredients are matched to their **exact registered item
+identities**; renamed vanilla items cannot impersonate them. All tiers retain their existing
+recipes' output quantities, item IDs, and storage capacities. Changing the difficulty
+only changes future crafts. Existing placed and portable cells, their contents, saved
+networks and recovery records remain unchanged.
+
+| Component | CLASSIC | BALANCED | HARD |
+| --- | --- | --- | --- |
+| Memory Wafer (4 outer quartz slots) | Quartz | Quartz | Pylon Copper Sheet |
+| Storage Lattice (4 copper slots) | Copper Ingots | Pylon Copper Sheets | Pylon Bronze Sheets |
+| Vault Index (center) | Comparator | Comparator | Pylon Cargo Controller |
+| Vault Power Base (4 corners) | Copper Ingots | Pylon Bronze Sheets | Pylon Steel Sheets |
+| Vault Power Base (center) | Copper Bulb | Copper Bulb | Pylon 1 kJ Capacitor |
+| Vault Cargo Node (4 corners) | Copper Ingots | Pylon Copper Sheets | Pylon Copper Sheets |
+| Vault Cargo Node (center) | Hopper | Hopper | Pylon Cargo Controller |
+| Basic Powered Vault Cell (4 corners) | Storage Lattice | Storage Lattice | Storage Lattice |
+| Basic Powered Vault Cell (2 side-upper/lower) | Copper Ingots | Pylon Bronze Sheets | Pylon Steel Sheets |
+| Basic Powered Vault Cell (2 middle sides) | Copper Ingots | Pylon Cargo Controllers | Pylon Cargo Controllers |
+| Advanced Powered Vault Cell (4 corners) | Quartz | Pylon Steel Sheets | Pylon Igneous Composite |
+| Advanced Powered Vault Cell (2 middle sides) | Ender Pearls | Ender Pearls | Pylon 1 kJ Capacitors |
+
+The Basic Cell retains a Barrel center. The Advanced Cell still upgrades **one empty
+Basic Cell** with two Memory Wafers; filled cells cannot be used as crafting ingredients.
+The vanilla recipes for unaffected VaultWorks items remain available in all modes.
+
+Switching difficulty requires a **full server restart** (not a plugin hot-reload). Since
+Pylon loads before VaultWorks when installed, its registered items can be used as exact
+ingredients. To use VaultWorks without Pylon, select `CLASSIC` before starting the server.
 
 ### Build a Vault column
 
